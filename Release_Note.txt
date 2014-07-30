@@ -1,0 +1,23 @@
+/***************************************** (C) COPYRIGHT 2014 Intersil *****************************************
+*  Intersil TW686x firmware release notes
+*	submit action:
+*			1) update version number.
+*			2) log all changes and make sure list fixed bug is right
+*			3) download all package from svn, and re-test in whole system 
+*                          to make sure no new bugs created.
+*
+*   submit order:
+****************************************************************************************************************/
+------------------------------------------------------
+Revision: 2.4.0.2345
+DATE:     March. 26, 2014
+Auther:   Kai Bao
+------------------------------------------------------
+* SVN Number:
+		
+* Log of Changes:
+		1. tw68-ALSA.c: removed memcpy in audio irq, which was redundant anyway.
+
+		2. TW68-core.c: added tasklet to offload memcpy from video irq routine.
+* Bug fix:
+		1. TW68-core.c: fixed one bug in irq routine when handling DMA errors.
