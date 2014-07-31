@@ -186,11 +186,11 @@ struct TW68_board {
 
 struct TW68_dev;
 
-/* TW686_ page table */
+/* TW686_ DMA descriptor page table */
 struct TW68_pgtable {
-	unsigned int size;
-	__le32 *cpu;
-	dma_addr_t dma;
+	unsigned int size;	/* size of allocated buffer */
+	__le32 *cpu;		/* CPU virt. address */
+	dma_addr_t dma;		/* DMA handle */
 };
 
 /* tvaudio thread status */
@@ -364,13 +364,10 @@ struct TW68_dev {
 	struct TW68_dmasound dmasound;
 
 	/// DMA smart control
-	unsigned int videoDMA_ID;
-	unsigned int videoCap_ID;
-	unsigned int videoRS_ID;
-	unsigned int videoDMA_run[8];
-	unsigned int videoDecoderST[8];
-	unsigned int TCN;
-	unsigned int skip;
+	unsigned int videoDMA_ID;	/* DMA channels that should be active*/
+	unsigned int videoCap_ID;	/* DMA channels that are active */
+	unsigned int videoRS_ID;	/* DMA channels to reset */
+	unsigned int videoDMA_run[8];	/* wtf is this for? */
 
 	struct ringbuf {
 		int rxhead, rxtail;
@@ -379,10 +376,6 @@ struct TW68_dev {
 	} DMA_PB;
 
 	u64 errlog[9];		/* latest errors jiffies */
-
-	/* infrared remote */
-	int has_remote;
-	struct card_ir *remote;
 
 	/* pci i/o */
 	char name[32];
@@ -394,7 +387,7 @@ struct TW68_dev {
 
 	/* allocate common buffer for DMA entry tables  SG buffer P&B */
 	struct TW68_pgtable m_Page0;
-	struct TW68_pgtable m_Page1;
+//	struct TW68_pgtable m_Page1; /* not used */
 	struct TW68_pgtable m_AudioBuffer;
 
 	/* config info */
@@ -441,18 +434,9 @@ struct TW68_dev {
 	struct v4l2_rect crop_current;
 
 	/* other global state info */
-	unsigned int automute;
-	struct TW68_thread thread;
-	struct TW68_input *input;
-	struct TW68_input *hw_input;
-	unsigned int hw_mute;
-	int last_carrier;
-	int nosignal;
-	unsigned int insuspend;
 	unsigned int dwRegPB;	// PB flag for tasklet
 	unsigned int dwRegST;	// state for tasklet
 	struct tasklet_struct vid_tasklet;
-	void (*gate_ctrl) (struct TW68_dev * dev, int open);
 };
 
 /* ----------------------------------------------------------- */
@@ -652,18 +636,4 @@ extern const struct file_operations TW68_dsp_fops;
 
 extern const struct file_operations TW68_mixer_fops;
 
-/* ----------------------------------------------------------- */
-/* TW68-input.c                      */
-
-int TW68_input_init1(struct TW68_dev *dev);
-
-void TW68_input_fini(struct TW68_dev *dev);
-
-void TW68_input_irq(struct TW68_dev *dev);
-
-void TW68_probe_i2c_ir(struct TW68_dev *dev);
-
-void TW68_ir_start(struct TW68_dev *dev, struct card_ir *ir);
-
-void TW68_ir_stop(struct TW68_dev *dev);
 

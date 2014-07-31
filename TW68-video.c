@@ -597,8 +597,6 @@ int buffer_setup(struct videobuf_queue *q, unsigned int *count,
 
 	DecoderResize(dev, nId, fh->height / 2, fh->width);
 
-	/// Fixed_SG_Mapping(dev, nId, *size);  //   nDMA_channel
-
 	BFDMA_setup(dev, nId, (fh->height / 2), (*size / fh->height));	// BFbuf setup  DMA mode ...
 
 	dwReg2 = reg_readl(DMA_CH0_CONFIG + 2);
@@ -613,8 +611,8 @@ int buffer_setup(struct videobuf_queue *q, unsigned int *count,
 		(*count)--;
 
 	m_nDropChannelNum = 0;
-	m_bDropMasterOrSlave = 1;	// master
-	m_bDropField = 0;	////////////////////// 1
+	m_bDropMasterOrSlave = 1;	/* master */
+	m_bDropField = 0;
 	m_bDropOddOrEven = 0;
 	m_bHorizontalDecimate = 0;
 	m_bVerticalDecimate = 0;
@@ -624,9 +622,13 @@ int buffer_setup(struct videobuf_queue *q, unsigned int *count,
 	m_nCurVideoChannelNum = 0;	// real-time video channel  starts 0
 	m_nVideoFormat = dev->nVideoFormat[nId];
 
-	m_dwCHConfig = (m_StartIdx & 0x3FF) |	// 10 bits
-	    ((m_EndIdx & 0x3FF) << 10) |	// 10 bits
-	    ((m_nVideoFormat & 7) << 20) | ((m_bHorizontalDecimate & 1) << 23) | ((m_bVerticalDecimate & 1) << 24) | ((m_nDropChannelNum & 3) << 25) | ((m_bDropMasterOrSlave & 1) << 27) |	// 1 bit
+	m_dwCHConfig = (m_StartIdx & 0x3FF) |
+	    ((m_EndIdx & 0x3FF) << 10) |
+	    ((m_nVideoFormat & 7) << 20) |
+	    ((m_bHorizontalDecimate & 1) << 23) |
+	    ((m_bVerticalDecimate & 1) << 24) |
+	    ((m_nDropChannelNum & 3) << 25) |
+	    ((m_bDropMasterOrSlave & 1) << 27) |
 	    ((m_bDropField & 1) << 28) |
 	    ((m_bDropOddOrEven & 1) << 29) |
 	    ((m_nCurVideoChannelNum & 3) << 30);
@@ -798,6 +800,7 @@ int TW68_g_ctrl_internal(struct TW68_dev *dev, struct TW68_fh *fh,
 	default:
 		return -EINVAL;
 	}
+	return 0;
 }
 
 static int TW68_g_ctrl(struct file *file, void *priv, struct v4l2_control *c)
@@ -1157,8 +1160,6 @@ err:
 
 static int video_release(struct file *file)
 {
-	int minor = video_devdata(file)->minor;
-
 	struct TW68_fh *fh = file->private_data;
 	struct TW68_dev *dev = fh->dev;
 	int DMA_nCH = fh->DMA_nCH;
@@ -2157,7 +2158,7 @@ int buffer_setup_QF(struct videobuf_queue *q, unsigned int *count,
 			dwReg = reg_readl(DECODER0_SDT + (nId * 0x10));
 			reg_writel(DECODER0_SDT + (nId * 0x10), 7);	/// 0 NTSC
 		}
-		
+
 		DecoderResize(dev, nId, nH, nW);	// Field size
 
 		BFDMA_setup(dev, nId, fh->height / 2, (*size / fh->height / 2));	// BFbuf setup  DMA mode ...
@@ -2184,7 +2185,11 @@ int buffer_setup_QF(struct videobuf_queue *q, unsigned int *count,
 
 		m_dwCHConfig = (m_StartIdx & 0x3FF) |	// 10 bits
 		    ((m_EndIdx & 0x3FF) << 10) |	// 10 bits
-		    ((m_nVideoFormat & 7) << 20) | ((m_bHorizontalDecimate & 1) << 23) | ((m_bVerticalDecimate & 1) << 24) | ((m_nDropChannelNum & 3) << 25) | ((m_bDropMasterOrSlave & 1) << 27) |	// 1 bit
+		    ((m_nVideoFormat & 7) << 20) |
+		    ((m_bHorizontalDecimate & 1) << 23) |
+		    ((m_bVerticalDecimate & 1) << 24) |
+		    ((m_nDropChannelNum & 3) << 25) |
+		    ((m_bDropMasterOrSlave & 1) << 27) |	// 1 bit
 		    ((m_bDropField & 1) << 28) |
 		    ((m_bDropOddOrEven & 1) << 29) |
 		    ((m_nCurVideoChannelNum & 3) << 30);

@@ -151,25 +151,14 @@ MODULE_DEVICE_TABLE(pci, TW68_pci_tbl);
 static LIST_HEAD(mops_list);
 static unsigned int TW68_devcount;
 
-static u32 video_framerate[3][6] = {
-	{
-	 0xBFFFFFFF,		/// 30  FULL
-	 0xBFFFCFFF,		/// 28
-	 0x8FFFCFFF,		/// 26
-	 0xBF3F3F3F,		/// 24 FPS
-	 0xB3CFCFC3,		/// 22
-	 0x8F3CF3CF		/// 20 FPS
-	 },
-	{30, 28, 26, 24, 22, 20},
-	{25, 23, 20, 18, 16, 14}
-};
-
 int (*TW68_dmasound_init) (struct TW68_dev * dev);
 int (*TW68_dmasound_exit) (struct TW68_dev * dev);
 
 #define dprintk(fmt, arg...)	if (core_debug) \
 	printk(KERN_DEBUG "%s/core: " fmt, dev->name , ## arg)
 
+#if 0
+// does not appear to be used
 void tw68v_set_framerate(struct TW68_dev *dev, u32 ch, u32 n)
 {
 	if (n >= 0 && n < 6 && ch >= 0 && ch < 8)
@@ -178,6 +167,7 @@ void tw68v_set_framerate(struct TW68_dev *dev, u32 ch, u32 n)
 	    ("****    tw68v_set_framerate: ch Id %d   n:%d  %d FPS \n ",
 	     ch, n, video_framerate[n][1]);
 }
+#endif
 
 /* ------------------------------------------------------------------ */
 
@@ -211,7 +201,7 @@ void dma_field_free(struct dma_region *dma)
 }
 
 /**   struct pci_dev *pci,
- * dma_region_alloc - allocate the buffer and map it to the IOMMU
+ * dma_region_alloc - allocate a buffer and map it to the IOMMU
  */
 int dma_field_alloc(struct dma_region *dma, unsigned long n_bytes,
 		    struct pci_dev *dev, int direction)
@@ -233,7 +223,6 @@ int dma_field_alloc(struct dma_region *dma, unsigned long n_bytes,
 		goto err;
 	}
 
-	/* Clear the ram out, no junk to the user */
 	memset(dma->kvirt, 0, n_bytes);
 
 	/* allocate scatter/gather list */
@@ -289,7 +278,7 @@ int TW68_buffer_count(unsigned int size, unsigned int count)
 	maxcount = 1024 / TW68_buffer_pages(size);
 	if (count > maxcount)
 		count = maxcount;
-		
+
 	return count;
 }
 
@@ -346,22 +335,21 @@ int AudioDMA_PB_alloc(struct pci_dev *pci, struct TW68_pgtable *pt)
 	return 0;
 }
 
+/* Allocate memory for descriptor page table */
 int videoDMA_pgtable_alloc(struct pci_dev *pci, struct TW68_pgtable *pt)
 {
 	__le32 *cpu;
-	// __le32               *clean;
-	dma_addr_t dma_addr, phy_addr;
+	dma_addr_t dma_addr;
 
-	cpu = pci_alloc_consistent(pci, PAGE_SIZE << 3, &dma_addr);	// 8* 4096 contiguous  //*2
+	cpu = pci_alloc_consistent(pci, PAGE_SIZE * 8, &dma_addr);
 
 	if (NULL == cpu) {
 		return -ENOMEM;
 	}
 
-	pt->size = PAGE_SIZE << 3;	///pt;  //2
+	pt->size = PAGE_SIZE * 8;
 	pt->cpu = cpu;
 	pt->dma = dma_addr;
-	phy_addr = dma_addr + (PAGE_SIZE << 2) + (PAGE_SIZE << 1);	//6 pages
 
 	return 0;
 }
@@ -386,7 +374,7 @@ int TW68_buffer_queue(struct TW68_dev *dev,
 		list_add_tail(&buf->vb.queue, &q->queued);	// curr
 		buf->vb.state = VIDEOBUF_QUEUED;
 	}
-	
+
 	return 0;
 
 }
@@ -456,7 +444,6 @@ void TW68_buffer_next(struct TW68_dev *dev, struct TW68_dmaqueue *q)
 		/* activate next one from  dma queue */
 		buf = list_entry(q->queued.next, struct TW68_buf, vb.queue);
 
-		/// **** remove  v4l video buffer from the queue
 		list_del(&buf->vb.queue);
 		if (!list_empty(&q->queued))
 			next =
@@ -520,11 +507,9 @@ void Field_SG_Mapping(struct TW68_dev *dev, int field_PB)	//    0 1
 				if (remain > 0) {
 
 					dwCtrl =
-					    (((DMA_STATUS_HOST_READY & 0x3) <<
-					      30) | (((0) & 1) << 29) |
-					     ((m_CurrentFrameStartIdx & 0xFF) <<
-					      14) | ((m_NextFrameStartIdx &
-						      0xFF) << 21) |
+					    (((DMA_STATUS_HOST_READY & 0x3) << 30) |
+					     ((m_CurrentFrameStartIdx & 0xFF) << 14) |
+					     ((m_NextFrameStartIdx & 0xFF) << 21) |
 					     (remain & 0x1FFF));	// size
 
 					if (field_PB)
@@ -564,7 +549,11 @@ void Field_SG_Mapping(struct TW68_dev *dev, int field_PB)	//    0 1
 
 			else {
 
-				dwCtrl = (((DMA_STATUS_HOST_READY & 0x3) << 30) | (((i == 0) & 1) << 29) | ((m_CurrentFrameStartIdx & 0x7F) << 14) | ((m_NextFrameStartIdx & 0xFF) << 21) | (list->length & 0x1FFF));	// size
+				dwCtrl = (((DMA_STATUS_HOST_READY & 0x3) << 30)
+						| (((i == 0) & 1) << 29) |
+						((m_CurrentFrameStartIdx & 0x7F) << 14) | 
+						((m_NextFrameStartIdx & 0xFF) << 21) | 
+						(list->length & 0x1FFF));	// size
 
 				if (((!field_PB)
 				     && ((nbytes + list->length) <= FieldSize))
@@ -576,7 +565,8 @@ void Field_SG_Mapping(struct TW68_dev *dev, int field_PB)	//    0 1
 				if (((!field_PB)
 				     && ((nbytes + list->length) <= FieldSize))
 				    || ((field_PB) && (nbytes >= FieldSize)))
-					*(ptr++) = cpu_to_le32(sg_dma_address(list) - list->offset);	/// setup page dma address
+					*(ptr++) = cpu_to_le32(sg_dma_address(list)
+							- list->offset);	/// setup page dma address
 				else
 					ptr++;	/// pointing to the Address dword
 
@@ -585,7 +575,7 @@ void Field_SG_Mapping(struct TW68_dev *dev, int field_PB)	//    0 1
 			}
 
 		}
-	} 
+	}
 	/* else: nothing to do -- just stop DMA */
 }
 
@@ -641,12 +631,15 @@ void Fixed_SG_Mapping(struct TW68_dev *dev, int nDMA_channel, int Frame_size)	//
 
 			dwCtrl = (((DMA_STATUS_HOST_READY & 0x3) << 30) |
 				  (((i == 0) & 1) << 29) |
-				  ((m_CurrentFrameStartIdx & 0x7F) << 14) | ((m_NextFrameStartIdx & 0xFF) << 21) | ((pgn > 70) << 13) |	///   70
+				  ((m_CurrentFrameStartIdx & 0x7F) << 14) | 
+				  ((m_NextFrameStartIdx & 0xFF) << 21) | 
+				  ((pgn > 70) << 13) |	///   70
 				  (remain & 0x1FFF));	// size
 
 			*(ptr++) = cpu_to_le32(dwCtrl);
 
-			*(ptr++) = cpu_to_le32(sg_dma_address(sglist) - sglist->offset);	/// setup page dma address
+			*(ptr++) = cpu_to_le32(sg_dma_address(sglist) -
+					sglist->offset);	/// setup page dma address
 
 			nbytes += sglist->length;
 
@@ -672,31 +665,31 @@ void Fixed_SG_Mapping(struct TW68_dev *dev, int nDMA_channel, int Frame_size)	//
 
 		dwCtrl = (((DMA_STATUS_HOST_READY & 0x3) << 30) |
 			  (((i == 0) & 1) << 29) |
-			  ///(1<<29)|
 			  ((m_CurrentFrameStartIdx & 0x7F) << 14) |	/// 0xFF
-			  ((m_NextFrameStartIdx & 0xFF) << 21) | ((pgn > 70) << 13) | (remain & 0x1FFF));	// size
+			  ((m_NextFrameStartIdx & 0xFF) << 21)
+				| ((pgn > 70) << 13) | (remain & 0x1FFF));  // size
 
 		*(ptr++) = cpu_to_le32(dwCtrl);
-
-		*(ptr++) = cpu_to_le32(sg_dma_address(sglist) - sglist->offset);	/// setup page dma address
-
+		/// setup page dma address
+		*(ptr++) = cpu_to_le32(sg_dma_address(sglist) - sglist->offset);
 		nbytes += sglist->length;	/// remain
 	}
 
 }
 
-////////////////////////////////////////////////////BFDMA_setup(  );/////////////////////////////////////////////////////////////
 void BFDMA_setup(struct TW68_dev *dev, int nDMA_channel, int H, int W)	//    Field0   P B    Field1  P B     WidthHightPitch
 {
 	u32 regDW, dwV, dn;
 
-	reg_writel((BDMA_ADDR_P_0 + nDMA_channel * 8), dev->BDbuf[nDMA_channel][0].dma_addr);	//P DMA page table
+	reg_writel((BDMA_ADDR_P_0 + nDMA_channel * 8),
+			dev->BDbuf[nDMA_channel][0].dma_addr);	//P DMA page table
 	reg_writel((BDMA_ADDR_B_0 + nDMA_channel * 8),
 		   dev->BDbuf[nDMA_channel][1].dma_addr);
 	reg_writel((BDMA_WHP_0 + nDMA_channel * 8),
 		   (W & 0x7FF) | ((W & 0x7FF) << 11) | ((H & 0x3FF) << 22));
 
-	reg_writel((BDMA_ADDR_P_F2_0 + nDMA_channel * 8), dev->BDbuf[nDMA_channel][2].dma_addr);	//P DMA page table
+	reg_writel((BDMA_ADDR_P_F2_0 + nDMA_channel * 8),
+			dev->BDbuf[nDMA_channel][2].dma_addr);	//P DMA page table
 	reg_writel((BDMA_ADDR_B_F2_0 + nDMA_channel * 8),
 		   dev->BDbuf[nDMA_channel][3].dma_addr);
 	reg_writel((BDMA_WHP_F2_0 + nDMA_channel * 8),
@@ -711,8 +704,6 @@ void BFDMA_setup(struct TW68_dev *dev, int nDMA_channel, int H, int W)	//    Fie
 	reg_writel(PHASE_REF_CONFIG, regDW);
 	dwV = reg_readl(PHASE_REF_CONFIG);
 }
-
- ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 int Field_Copy(struct TW68_dev *dev, int nDMA_channel, int field_PB)
 {
@@ -945,11 +936,9 @@ void DecoderResize(struct TW68_dev *dev, int nId, int nHeight, int nWidth)
 	}
 
 	if (nId >= 4) {
-		nAddr = (EX_VSCALE1_LO + ((nId - 4) << 1) + (nId - 4)) + 0x100;	//EX_VSCALE1_LO + 0|3|6|9
-		nAddr = VSCALE1_LO + ((nId - 4) << 4) + 0x100;	//6869 0x200 VSCALE1_LO + 0|0x10|0x20|0x30
-
+		nAddr = VSCALE1_LO + ((nId - 4) << 4) + 0x100;
 	} else
-		nAddr = VSCALE1_LO + (nId << 4);	//VSCALE1_LO + 0|0x10|0x20|0x30
+		nAddr = VSCALE1_LO + (nId << 4);
 
 	nVal = nH & 0xFF;	//V
 
@@ -992,8 +981,6 @@ void DecoderResize(struct TW68_dev *dev, int nId, int nHeight, int nWidth)
 
 }
 
-/////--------------------------------DMA start etc--------------------------------------------------
-
 void resync(unsigned long data)
 {
 	struct TW68_dev *dev = (struct TW68_dev *)data;
@@ -1015,18 +1002,19 @@ void resync(unsigned long data)
 			m++;
 			dev->videoRS_ID |= mask;
 			if ((m > 1) || dev->videoDMA_ID)
-				k = 16;
+				break;
 		}
 	}
 
 	if ((dev->videoDMA_ID == 0) && dev->videoRS_ID) {
 		dev->videoDMA_ID = dev->videoRS_ID;
 		dwRegE = dev->videoDMA_ID;
-
+		/* enable DMA channels */
 		reg_writel(DMA_CHANNEL_ENABLE, dwRegE);
 		dwRegE = reg_readl(DMA_CHANNEL_ENABLE);
-		dwRegF = (1 << 31);
+		dwRegF = (1 << 31); /* DMA enable bit */
 		dwRegF |= dwRegE;
+		/* reset DMA channels */
 		reg_writel(DMA_CMD, dwRegF);
 		dwRegF = reg_readl(DMA_CMD);
 
@@ -1038,9 +1026,9 @@ void resync(unsigned long data)
 // special treatment for intel MB
 u64 GetDelay(struct TW68_dev *dev, int eno)
 {
-	u64 delay, k, last, now, pause;
+	u64 delay, last, now, pause;
 	last = 0;
-	pause = 40;		// 20  30  50
+	pause = 40;
 
 	now = jiffies;
 	if (last > now)
@@ -1063,8 +1051,6 @@ void TW68_buffer_timeout(unsigned long data)
 	struct TW68_dmaqueue *q = (struct TW68_dmaqueue *)data;
 	struct TW68_dev *dev = q->dev;
 
-	int nId = q->DMA_nCH;
-
 	if (q->curr) {
 
 		dwRegE = reg_readl(DMA_CHANNEL_ENABLE);
@@ -1074,8 +1060,6 @@ void TW68_buffer_timeout(unsigned long data)
 	}
 	TW68_buffer_next(dev, q);
 }
-
-/* ------------------------------------------------------------------ */
 
 int TW68_set_dmabits(struct TW68_dev *dev, unsigned int DMA_nCH)
 {
@@ -1183,17 +1167,11 @@ void video_tasklet(unsigned long device)
 	for (k = 0; k < 8; k++) {
 		if ((dwRegST & dev->videoDMA_ID) & (1 << k))	/// exclude  inactive dev
 		{
-
 			TW68_irq_video_done(dev, k + 1, dwRegPB);
-
-			if (!dev->video_dmaq[k + 1].FieldPB)	// first time after dma start
-			{
-			}
 
 			if (dev->video_dmaq[k + 1].FieldPB & 0xF0) {
 				dev->video_dmaq[k + 1].FieldPB &= 0xFFFF0000;
 			} else {
-
 				dev->video_dmaq[k + 1].FieldPB &= 0xFFFF00FF;	// clear  PB
 				dev->video_dmaq[k + 1].FieldPB |=
 				    (dwRegPB & (1 << k)) << 8;
@@ -1209,7 +1187,6 @@ static irqreturn_t TW68_irq(int irq, void *dev_id)	/// hardware dev id for the I
 	struct TW68_dev *dev = (struct TW68_dev *)dev_id;
 	unsigned long flags, audio_ch, k, eno, handled;
 	u32 dwRegST, dwRegER, dwRegPB, dwRegE, dwRegF, dwRegVP, dwErrBit;
-	static int INT1st = 1;
 	static u32 lastPB = 0;
 
 	audio_ch = 1;
@@ -1225,11 +1202,7 @@ static irqreturn_t TW68_irq(int irq, void *dev_id)	/// hardware dev id for the I
 	dwRegF = reg_readl(DMA_CMD);
 	spin_unlock_irqrestore(&dev->slock, flags);
 
-	if (dev->videoDMA_ID != dwRegE) {
-		INT1st++;
-	}
-
-	if ((dwRegER & 0xFF000000) && dev->video_DMA_1st_started
+	if ((dwRegER & DMA_FIFO_OVFERR_MASK) && dev->video_DMA_1st_started
 	    && dev->err_times < 9) {
 		dev->video_DMA_1st_started--;
 		if (dev->video_DMA_1st_started < 0)
@@ -1240,12 +1213,14 @@ static irqreturn_t TW68_irq(int irq, void *dev_id)	/// hardware dev id for the I
 		    ("DeviceInterrupt: 1st startup err_times:%d ## dma_status (err) =0x%x   dwRegVP (video parser)=0X%x   int_status 0x%x   dwRegE 0X%x \n",
 		     dev->err_times, dwRegER, dwRegVP, dwRegST, dwRegE);
 	} else {
-		if ((dwRegER >> 16) || dwRegVP || (dwRegST >> 24))	//stop
-		{		//err_exist, such as cpl error, tlp error, time-out
+		if ((dwRegER & DMA_FIFO_ANYERR_MASK)
+			|| dwRegVP || (dwRegST & DMA_STAT_BADFMT_MASK))
+		{
+			//stop
+			//err_exist, such as cpl error, tlp error, time-out
 			dwErrBit = 0;
 			dwErrBit |= ((dwRegST >> 24) & 0xFF);
 			dwErrBit |= (((dwRegVP >> 8) | dwRegVP) & 0xFF);
-			///dwErrBit |= (((dwRegER >>24) |(dwRegER >>16) |(dwRegER ))& 0xFF);
 			dwErrBit |=
 			    (((dwRegER >> 24) | (dwRegER >> 16)) & 0xFF);
 
@@ -1264,9 +1239,7 @@ static irqreturn_t TW68_irq(int irq, void *dev_id)	/// hardware dev id for the I
 			spin_lock_irqsave(&dev->slock, flags);
 			dev->videoDMA_ID = dwRegE;
 			reg_writel(DMA_CHANNEL_ENABLE, dwRegE);
-			//kb: added to fix bug;
 			dwRegE = reg_readl(DMA_CHANNEL_ENABLE);
-//                dwRegF = reg_readl(DMA_CHANNEL_ENABLE);
 			dwRegF = (1 << 31);
 			dwRegF |= dwRegE;
 			reg_writel(DMA_CMD, dwRegF);
@@ -1283,58 +1256,15 @@ static irqreturn_t TW68_irq(int irq, void *dev_id)	/// hardware dev id for the I
 		} else {
 			if (dwRegST & (0xFF00) & dev->videoDMA_ID) {
 				TW68_alsa_irq(dev, dwRegST, dwRegPB);
-
 			}
 
-			if (lastPB != dwRegPB)	// skip the conflict interrupt
-				if ((dwRegST & (0xFF)) && (!(dwRegER >> 16))) {
-#if 1
-					//kb: added for vid tasklet;
-					dev->dwRegPB = dwRegPB;
-					dev->dwRegST = dwRegST;
-					tasklet_schedule(&dev->vid_tasklet);
-
-#else
-					for (k = 0; k < 8; k++) {
-						if ((dwRegST & dev->videoDMA_ID) & (1 << k))	/// exclude  inactive dev
-						{
-
-							TW68_irq_video_done(dev,
-									    k +
-									    1,
-									    dwRegPB);
-
-							if (dev->
-							    video_dmaq[k +
-								       1].
-							    FieldPB & 0xF0) {
-								dev->
-								    video_dmaq[k
-									       +
-									       1].
-								    FieldPB &=
-								    0xFFFF0000;
-							} else {
-
-								dev->video_dmaq[k + 1].FieldPB &= 0xFFFF00FF;	// clear  PB
-								dev->
-								    video_dmaq[k
-									       +
-									       1].
-								    FieldPB |=
-								    (dwRegPB &
-								     (1 << k))
-								    << 8;
-								dev->
-								    video_dmaq[k
-									       +
-									       1].
-								    FCN++;
-							}
-						}
-					}
-#endif
-				}
+			// lastPB is always 0 ?!
+			if ((lastPB != dwRegPB) && (dwRegST & (0xFF)) &&
+					(!(dwRegER & DMA_FIFO_ANYERR_MASK))) {
+				dev->dwRegPB = dwRegPB;
+				dev->dwRegST = dwRegST;
+				tasklet_schedule(&dev->vid_tasklet);
+			}
 
 			if (dev->videoRS_ID) {
 				dev->videoDMA_ID |= dev->videoRS_ID;
@@ -1467,7 +1397,11 @@ static int TW68_hwinit1(struct TW68_dev *dev)
 
 		m_dwCHConfig = (m_StartIdx & 0x3FF) |	// 10 bits
 		    ((m_EndIdx & 0x3FF) << 10) |	// 10 bits
-		    ((m_nVideoFormat & 7) << 20) | ((m_bHorizontalDecimate & 1) << 23) | ((m_bVerticalDecimate & 1) << 24) | ((m_nDropChannelNum & 3) << 25) | ((m_bDropMasterOrSlave & 1) << 27) |	// 1 bit
+		    ((m_nVideoFormat & 7) << 20) |
+		    ((m_bHorizontalDecimate & 1) << 23) |
+		    ((m_bVerticalDecimate & 1) << 24) |
+		    ((m_nDropChannelNum & 3) << 25) |
+		    ((m_bDropMasterOrSlave & 1) << 27) |	// 1 bit
 		    ((m_bDropField & 1) << 28) |
 		    ((m_bDropOddOrEven & 1) << 29) |
 		    ((m_nCurVideoChannelNum & 3) << 30);
@@ -1497,7 +1431,7 @@ static int TW68_hwinit1(struct TW68_dev *dev)
 
 
 	reg_writel((DMA_PAGE_TABLE0_ADDR), dev->m_Page0.dma);	//P DMA page table
-	reg_writel((DMA_PAGE_TABLE1_ADDR), dev->m_Page0.dma + (PAGE_SIZE << 1));	//B DMA page table
+	reg_writel((DMA_PAGE_TABLE1_ADDR), dev->m_Page0.dma + (PAGE_SIZE * 2));	//B DMA page table
 	reg_writel(AVSRST, 0x3F);	// u32
 	reg_writel(DMA_CMD, 0);	// u32
 	reg_writel(DMA_CHANNEL_ENABLE, 0);
@@ -1535,8 +1469,6 @@ static int TW68_hwinit1(struct TW68_dev *dev)
 
 	dev->video_DMA_1st_started = 0;	// initial value for skipping startup DMA error
 	dev->err_times = 0;	// DMA error counter
-
-	dev->TCN = 16;
 
 	for (k = 0; k < 8; k++) {
 		dev->videoDMA_run[k] = 0;;
@@ -1578,21 +1510,13 @@ static int vdev_init(struct TW68_dev *dev, struct video_device *template,
 
 		dev->video_device[k] = vfdev[k];
 
-		printk(KERN_INFO "*****%d*****video DEVICE NAME : %s   vfdev[%d] 0x%p  tvnorm::0x%p \n", k, dev->video_device[k]->name, k, vfdev[k], dev->tvnorm);	//  vfdev[k]->name,
 
 		err0 =
 		    video_register_device(dev->video_device[k],
 					  VFL_TYPE_GRABBER, video_nr[dev->nr]);
 		dev->vfd_DMA_num[k] = vfdev[k]->num;
 
-		printk(KERN_INFO
-		       "*****%d*****video DEVICE NAME : %s   minor %d   DMA %d  err0 %d \n",
-		       k, vfdev[k]->name, dev->video_device[k]->minor,
-		       dev->vfd_DMA_num[k], err0);
 	}
-
-	printk(KERN_INFO "%s Video DEVICE NAME : %s  \n", __func__,
-	       dev->video_device[1]->name);
 
 	return k;
 }
@@ -1714,15 +1638,11 @@ static int TW68_initdev(struct pci_dev *pci_dev,
 		printk(KERN_ERR "%s: can't ioremap() MMIO memory\n", dev->name);
 		goto fail2;
 	}
-	//printk(KERN_INFO "    TW6869 PCI_BAR0 mapped registers: phy: 0x%X   dev->lmmio 0X%x  dev->bmmio 0X%x   length: %x \n",
-	//  pci_resource_start(pci_dev, 0), (unsigned int)dev->lmmio, (unsigned int)dev->bmmio, (unsigned int)pci_resource_len(pci_dev,0) );
 
 	TW68_hwinit1(dev);
 
 	/* get irq */
-	printk("TW68_initdev   %s: request IRQ %d\n", dev->name, pci_dev->irq);
-
-	err = request_irq(pci_dev->irq, TW68_irq, IRQF_SHARED, dev->name, dev);	///   IRQF_SHARED | IRQF_DISABLED
+	err = request_irq(pci_dev->irq, TW68_irq, IRQF_SHARED, dev->name, dev);
 
 	//kb: added for video tasklet;
 	tasklet_init(&dev->vid_tasklet, video_tasklet, (unsigned long)dev);
@@ -1735,9 +1655,7 @@ static int TW68_initdev(struct pci_dev *pci_dev,
 
 	v4l2_prio_init(&dev->prio);
 
-	printk(KERN_ERR "Adding  TW686v_devlist %p\n", &TW686v_devlist);
 	list_add_tail(&dev->devlist, &TW686v_devlist);
-	////add current TW68_dev device structure node
 
 	/* register v4l devices */
 	err0 = vdev_init(dev, &TW68_video_template, "video");
@@ -1783,8 +1701,6 @@ static void TW68_finidev(struct pci_dev *pci_dev)
 	printk(KERN_INFO "%s: Starting unregister video device %d\n",
 	       dev->name, dev->video_device[1]->num);
 
-	printk(KERN_INFO " /* shutdown hardware */ dev 0x%p \n", dev);
-
 	/* shutdown hardware */
 
 	TW68_hwfini(dev);
@@ -1796,8 +1712,6 @@ static void TW68_finidev(struct pci_dev *pci_dev)
 	list_del(&dev->devlist);
 	mutex_unlock(&TW68_devlist_lock);
 	TW68_devcount--;
-
-	printk(KERN_INFO " list_del(&dev->devlist) \n ");
 
 	/* the DMA sound modules should be unloaded before reaching
 	   this, but just in case they are still present... */
@@ -1833,7 +1747,6 @@ static void TW68_finidev(struct pci_dev *pci_dev)
 
 	TW68_unregister_video(dev);
 	TW68_alsa_free(dev);
-	printk(KERN_INFO " TW68_unregister_video(dev); \n ");
 
 	//v4l2_device_unregister(&dev->v4l2_dev);
 	printk(KERN_INFO " unregistered v4l2_dev device  %d %d %d\n",
