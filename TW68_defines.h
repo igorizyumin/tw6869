@@ -4,11 +4,10 @@
 
 #pragma once
 
-#define   DMA_MODE_SG_RT		0		//Scatter Gather, Real-Time
-#define   DMA_MODE_SG_SWITCH	1		//Scatter Gather, Non-Real-Time
-#define   DMA_MODE_BLOCK		2		//Block Memory
+#define   DMA_MODE_SG_RT		0	//Scatter Gather, Real-Time
+#define   DMA_MODE_SG_SWITCH	1	//Scatter Gather, Non-Real-Time
+#define   DMA_MODE_BLOCK		2	//Block Memory
 #define   DMA_MODE				DMA_MODE_SG_RT
-
 
 //#define   DECIMATE_H
 //#define   DECIMATE_V
@@ -16,43 +15,42 @@
 //#define   DRIVER_INTERLACE
 //#define   CUSTOM_VIDEO_SIZE     (352 | (240<<16) | (1<<31)) //it overrides DECIMATE_H|DECIMATE_V
 //#define   CUSTOM_VIDEO_SIZE_F2  (704 | (120<<16))  //Available only for Rev.B or later
-#define   CUSTOM_VIDEO_SIZE     (640 | (240<<16) | (1<<31)) //it overrides DECIMATE_H|DECIMATE_V
+#define   CUSTOM_VIDEO_SIZE     (640 | (240<<16) | (1<<31))	//it overrides DECIMATE_H|DECIMATE_V
 
 //////////////////////////////////////////////////
 
-
-#define MAX_SWITCH_VIDEO_PER_DMA	4			//has to be 2 or 4
-#define SWITCH_ON_FIELDS_NUM		2			//has to be 2, DO NOT CHANGE
-#define SWITCH_TIMER_INTERVAL		20000L		//2ms, UINT 100ns, DO NOT CHANGE, it will not be accurate if go smaller, around 156~158 Lines,
-#define SWITCH_MAX_TIMER_INTERVAL	1			//2x1 -> 2ms
+#define MAX_SWITCH_VIDEO_PER_DMA	4	//has to be 2 or 4
+#define SWITCH_ON_FIELDS_NUM		2	//has to be 2, DO NOT CHANGE
+#define SWITCH_TIMER_INTERVAL		20000L	//2ms, UINT 100ns, DO NOT CHANGE, it will not be accurate if go smaller, around 156~158 Lines,
+#define SWITCH_MAX_TIMER_INTERVAL	1	//2x1 -> 2ms
 
 #define AUDIO_DMA_LEN				4096
-#define AUDIO_GEN					1     //1=External,0=internal
-#define	AUDIO_GEN_PATTERN			0     //0=WAVE,1=SEQ DATA , 1-bit
-#define AUDIO_GEN_MIX_SEL			0     //(0~7)
+#define AUDIO_GEN					1	//1=External,0=internal
+#define	AUDIO_GEN_PATTERN			0	//0=WAVE,1=SEQ DATA , 1-bit
+#define AUDIO_GEN_MIX_SEL			0	//(0~7)
 
-#define VIDEO_GEN					0xFF  //1=External,0=internal
-#define	VIDEO_GEN_PATTERNS			0x00  //0=ColorBar, 1=SEQ DATA , 8-bit
-#define VIDEO_FORMAT_UYVY			0  //UYVY=Y422
+#define VIDEO_GEN					0xFF	//1=External,0=internal
+#define	VIDEO_GEN_PATTERNS			0x00	//0=ColorBar, 1=SEQ DATA , 8-bit
+#define VIDEO_FORMAT_UYVY			0	//UYVY=Y422
 #define VIDEO_FORMAT_YUV420			1
-#define VIDEO_FORMAT_Y411			2  //Use VIDEO_FORMAT_IYU1 instead, LEAD does not accept this, even they are the same
+#define VIDEO_FORMAT_Y411			2	//Use VIDEO_FORMAT_IYU1 instead, LEAD does not accept this, even they are the same
 #define VIDEO_FORMAT_Y41P			3
 #define VIDEO_FORMAT_RGB555			4
 #define VIDEO_FORMAT_RGB565			5
-#define VIDEO_FORMAT_YUYV			6  //YUYV=YUY2, only available for Rev.B or later
-#define VIDEO_FORMAT_IYU1			0xA //same as VIDEO_FORMAT_Y411, m_nVideoFormat will be masked by 0x7
-#define VIDEO_FORMAT_UYVY_FRAME		0x8  //VideoInfoHeader2
+#define VIDEO_FORMAT_YUYV			6	//YUYV=YUY2, only available for Rev.B or later
+#define VIDEO_FORMAT_IYU1			0xA	//same as VIDEO_FORMAT_Y411, m_nVideoFormat will be masked by 0x7
+#define VIDEO_FORMAT_UYVY_FRAME		0x8	//VideoInfoHeader2
 #define VIDEO_FORMAT				VIDEO_FORMAT_UYVY
 
-#define AUDIO_DMA_LENGTH			PAGE_SIZE //in bytes, should not > PAGE_SIZE(4096)
-#define AUDIO_SAMPLE_RATE			8		  //in KHz
+#define AUDIO_DMA_LENGTH			PAGE_SIZE	//in bytes, should not > PAGE_SIZE(4096)
+#define AUDIO_SAMPLE_RATE			8	//in KHz
 #define AUDIO_SAMP_RATE_INT			(125000/AUDIO_SAMPLE_RATE)
 #define AUDIO_SAMP_RATE_EXT  		((((ULONGLONG)125000)<<16)/AUDIO_SAMPLE_RATE)
 
 #define VIDEO_IN_1CH				0x0
 #define VIDEO_IN_2CH				0x1
 #define VIDEO_IN_4CH				0x2
-#define VIDEO_IN_MODE				VIDEO_IN_4CH   //defines incoming muxed-656 format
+#define VIDEO_IN_MODE				VIDEO_IN_4CH	//defines incoming muxed-656 format
 
 //////////////////////////////////////////////////
 //NO NOT CHANGE
@@ -61,29 +59,28 @@
 #define	MAX_NUM_DATA_DMA			9
 #define MAX_NUM_DMA					(MAX_NUM_SG_DMA+MAX_NUM_DATA_DMA)
 
-
 //////////////////////////////////////////////////
 //NO NOT CHANGE
 // Register definitions
 // IMPORTANT: These defines are DWORD-based.
 // Part 1: DMA portion
-#define DMA_INT_STATUS          0x00  //RO
-#define DMA_PB_STATUS           0x01  //RO
+#define DMA_INT_STATUS          0x00	//RO
+#define DMA_PB_STATUS           0x01	//RO
 #define DMA_CMD                 0x02
 #define DMA_INT_ERROR			0x03
-#define DMA_FIFO_VLOSS          0x03   // B3 B2  B0 VLOSS
+#define DMA_FIFO_VLOSS          0x03	// B3 B2  B0 VLOSS
 #define VIDEO_CHID              0x04
 #define VIDEO_PARSER_STATUS     0x05
 #define SYS_SOFT_RST            0x06	// 0x7 - 0XF
 
-#define DMA_PAGE_TABLE0_ADDR    0x08  //RW
+#define DMA_PAGE_TABLE0_ADDR    0x08	//RW
 #define DMA_PAGE_TABLE1_ADDR    0x09
 #define DMA_CHANNEL_ENABLE      0x0a
 #define DMA_CONFIG              0x0b
 #define DMA_INT_REF				0x0c
 #define DMA_CHANNEL_TIMEOUT		0x0d
 
-#define DMA_CH0_CONFIG          0x10  //DMA_CH0_CONFIG ~ DMA_CH7_CONFIG are continusly
+#define DMA_CH0_CONFIG          0x10	//DMA_CH0_CONFIG ~ DMA_CH7_CONFIG are continusly
 #define DMA_CH1_CONFIG          0x11
 #define DMA_CH2_CONFIG          0x12
 #define DMA_CH3_CONFIG          0x13
@@ -91,7 +88,7 @@
 #define DMA_CH5_CONFIG          0x15
 #define DMA_CH6_CONFIG          0x16
 #define DMA_CH7_CONFIG          0x17
-#define DMA_CH8_CONFIG_P        0x18   // DMA_CH8_CONFIG_P ~ DMA_CH10_CONFIG_B are continusly
+#define DMA_CH8_CONFIG_P        0x18	// DMA_CH8_CONFIG_P ~ DMA_CH10_CONFIG_B are continusly
 #define DMA_CH8_CONFIG_B        0x19
 #define DMA_CH9_CONFIG_P        0x1A
 #define DMA_CH9_CONFIG_B        0x1B
@@ -135,7 +132,7 @@
 #define DROP_FIELD_REG5         0x3E
 #define DROP_FIELD_REG6         0x3F
 #define DROP_FIELD_REG7         0x40
-#define VIDEO_SIZE_REG			0x41 //Rev.A only
+#define VIDEO_SIZE_REG			0x41	//Rev.A only
 #define SHSCALER_REG0			0x42
 #define SHSCALER_REG1			0x43
 #define SHSCALER_REG2			0x44
@@ -144,7 +141,7 @@
 #define SHSCALER_REG5			0x47
 #define SHSCALER_REG6			0x48
 #define SHSCALER_REG7			0x49
-#define VIDEO_SIZE_REG0         0x4A  //Rev.B or later
+#define VIDEO_SIZE_REG0         0x4A	//Rev.B or later
 #define VIDEO_SIZE_REG1         0x4B
 #define VIDEO_SIZE_REG2         0x4C
 #define VIDEO_SIZE_REG3         0x4D
@@ -152,7 +149,7 @@
 #define VIDEO_SIZE_REG5         0x4F
 #define VIDEO_SIZE_REG6         0x50
 #define VIDEO_SIZE_REG7         0x51
-#define VIDEO_SIZE_REG0_F2      0x52  //Rev.B or later
+#define VIDEO_SIZE_REG0_F2      0x52	//Rev.B or later
 #define VIDEO_SIZE_REG1_F2      0x53
 #define VIDEO_SIZE_REG2_F2      0x54
 #define VIDEO_SIZE_REG3_F2      0x55
@@ -168,7 +165,7 @@
 #define VC_CTRL_REG5			0x75
 #define VC_CTRL_REG6			0x76
 #define VC_CTRL_REG7			0x77
-#define BDMA_ADDR_P_0			0x80   //0x80 ~ 0xBF,Rev.B or later
+#define BDMA_ADDR_P_0			0x80	//0x80 ~ 0xBF,Rev.B or later
 #define BDMA_WHP_0				0x81
 #define BDMA_ADDR_B_0			0x82
 #define BDMA_ADDR_P_F2_0		0x84
@@ -194,7 +191,6 @@
 #define DECODER2_SDTEN			0x12F
 #define DECODER3_SDTEN			0x13F
 
-
 #define CROP_H0					0x107
 #define CROP_H1					0x117
 #define CROP_H2					0x127
@@ -219,7 +215,6 @@
 #define HACTIVE_L1				0x11B
 #define HACTIVE_L2				0x12B
 #define HACTIVE_L3				0x13B
-
 
 #define VDELAY0_F2				0x148
 #define VDELAY1_F2				0x158
@@ -293,7 +288,7 @@
 //Register definition for external 2864 registers, See Tw2864 Spec for details
 //
 
-#define CLK_SEL_2865			0x61 //specfic to TW2865
+#define CLK_SEL_2865			0x61	//specfic to TW2865
 
 #define I2C_ADDR_2864_0			0x50
 #define I2C_ADDR_2864_1			0x52
@@ -312,7 +307,6 @@
 #define VD1_SDTEN			0x1F
 #define VD2_SDTEN			0x2F
 #define VD3_SDTEN			0x3F
-
 
 #define EX_VDELAY0				0x08
 #define EX_VDELAY1				0x18
@@ -376,7 +370,6 @@
 #define EX_HUE3					0x26
 #define EX_HUE4					0x36
 
-
 //////////////////////////////////////////////////
 // Constantants definitions
 #define DMA_STATUS_HOST_NOT_AVAIABLE    0
@@ -393,51 +386,44 @@
         ( (DWORD)(BYTE)(ch0) | ( (DWORD)(BYTE)(ch1) << 8 ) |    \
         ( (DWORD)(BYTE)(ch2) << 16 ) | ( (DWORD)(BYTE)(ch3) << 24 ) )
 #endif
-#define FOURCC_UYVY         mmioFOURCC('U', 'Y', 'V', 'Y') //low -> high  same as Y422
-#define FOURCC_YUYV         mmioFOURCC('Y', 'U', 'Y', '2')//              same as YUY2
+#define FOURCC_UYVY         mmioFOURCC('U', 'Y', 'V', 'Y')	//low -> high  same as Y422
+#define FOURCC_YUYV         mmioFOURCC('Y', 'U', 'Y', '2')	//              same as YUY2
 #define FOURCC_YUV420       mmioFOURCC('I', '4', '2', '0')
 #define FOURCC_Y411         mmioFOURCC('Y', '4', '1', '1')
 #define FOURCC_IYU1         mmioFOURCC('I', 'Y', 'U', '1')
 #define FOURCC_Y41P         mmioFOURCC('Y', '4', '1', 'P')
 #define FOURCC_VCMP         mmioFOURCC('V', 'C', 'M', 'P')
-/*
-// 30323449-0000-0010-8000-00AA00389B71 MEDIASUBTYPE_I420
-OUR_GUID_ENTRY(MEDIASUBTYPE_I420,
-0x30323449, 0x0000, 0x0010, 0x80, 0x00, 0x00, 0xAA, 0x00, 0x38, 0x9B, 0x71)
-*/
 
 #ifdef USE_COLORSPACE_OPTIONS
-#define VIDEO_CAPTURE_PIN_DATA_RANGE_COUNT	 6  //3*2   // The number of ranges supported on the video capture pin.
+#define VIDEO_CAPTURE_PIN_DATA_RANGE_COUNT	 6	//3*2   // The number of ranges supported on the video capture pin.
 #else
-#define VIDEO_CAPTURE_PIN_DATA_RANGE_COUNT	 1   // The number of ranges supported on the video capture pin.
+#define VIDEO_CAPTURE_PIN_DATA_RANGE_COUNT	 1	// The number of ranges supported on the video capture pin.
 #endif
 
-#define AUDIO_CAPTURE_PIN_DATA_RANGE_COUNT	 1   // The number of ranges supported on the audio capture pin.
-#define CAPTURE_FILTER_CATEGORIES_COUNT		 3      // The number of categories for the capture filter.
+#define AUDIO_CAPTURE_PIN_DATA_RANGE_COUNT	 1	// The number of ranges supported on the audio capture pin.
+#define CAPTURE_FILTER_CATEGORIES_COUNT		 3	// The number of categories for the capture filter.
 
 #ifdef DROP_FIELD
-#define NTSC_FRAME_TIME	667334				 //unit 100ns,  Dropped case
+#define NTSC_FRAME_TIME	667334	//unit 100ns,  Dropped case
 #define NTSC_FRAME_RATE	15
 #endif
 
 #ifdef DROP_FIELD_REG
-#define NTSC_FRAME_TIME	667334				 //unit 100ns,  Dropped case
+#define NTSC_FRAME_TIME	667334	//unit 100ns,  Dropped case
 #define NTSC_FRAME_RATE	15
 #endif
 
 #ifndef NTSC_FRAME_TIME
-#define NTSC_FRAME_TIME	333667				 //unit 100ns,Normal case
+#define NTSC_FRAME_TIME	333667	//unit 100ns,Normal case
 #endif
 
 #ifndef NTSC_FRAME_RATE
-#define NTSC_FRAME_RATE	30					//unit frames
+#define NTSC_FRAME_RATE	30	//unit frames
 #endif
 
 #define NTSC_FIELD_TIME	(NTSC_FRAME_TIME>>1)
 #define NTSC_FIELD_RATE	(NTSC_FRAME_RATE<<1)
-//#define NTSC_FIELD_TIME	NTSC_FRAME_TIME
-//#define NTSC_FIELD_RATE	NTSC_FRAME_RATE
+//#define NTSC_FIELD_TIME       NTSC_FRAME_TIME
+//#define NTSC_FIELD_RATE       NTSC_FRAME_RATE
 
 #define MAX_FRAME_TIME  NTSC_FIELD_TIME
-
-
