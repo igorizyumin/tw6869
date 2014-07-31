@@ -174,7 +174,7 @@ void tw68v_set_framerate(struct TW68_dev *dev, u32 ch, u32 n)
 {
 	if (n >= 0 && n < 6 && ch >= 0 && ch < 8)
 		reg_writel(DROP_FIELD_REG0 + ch, video_framerate[n][0]);	// 30 FPS
-	printk
+	dprintk
 	    ("****    tw68v_set_framerate: ch Id %d   n:%d  %d FPS \n ",
 	     ch, n, video_framerate[n][1]);
 }
@@ -227,11 +227,9 @@ int dma_field_alloc(struct dma_region *dma, unsigned long n_bytes,
 	n_bytes = PAGE_ALIGN(n_bytes);
 
 	dma->n_pages = n_bytes >> PAGE_SHIFT;
-	/// printk( "dma_field_alloc: n_bytes %d   n_pages %d\n", n_bytes, dma->n_pages  );
 
 	dma->kvirt = vmalloc_32(n_bytes);
 	if (!dma->kvirt) {
-		/// printk(KERN_ERR "dma_region_alloc: vmalloc_32() failed\n");
 		goto err;
 	}
 
@@ -241,7 +239,6 @@ int dma_field_alloc(struct dma_region *dma, unsigned long n_bytes,
 	/* allocate scatter/gather list */
 	dma->sglist = vmalloc(dma->n_pages * sizeof(*dma->sglist));
 	if (!dma->sglist) {
-		/// printk(KERN_ERR "dma_region_alloc: vmalloc(sglist) failed\n");
 		goto err;
 	}
 
@@ -261,7 +258,6 @@ int dma_field_alloc(struct dma_region *dma, unsigned long n_bytes,
 	    pci_map_sg(dev, dma->sglist, dma->n_pages, direction);
 
 	if (dma->n_dma_pages == 0) {
-		/// printk(KERN_ERR "dma_region_alloc: pci_map_sg() failed\n");
 		goto err;
 	}
 
@@ -410,12 +406,8 @@ int TW68_buffer_requeue(struct TW68_dev *dev, struct TW68_dmaqueue *q)
 {
 	struct TW68_buf *buf, *prev;
 
-	printk("%s: called\n", __func__);
-
 	if (!list_empty(&q->active)) {
 		buf = list_entry(q->active.next, struct TW68_buf, vb.queue);
-		// printk( "%s: [%p/%d] restart dma\n", __func__,       buf, buf->vb.i);
-		//q->start_dma(dev, q, buf);
 		mod_timer(&q->timeout, jiffies + BUFFER_TIMEOUT);
 		return 0;
 	}
@@ -429,19 +421,12 @@ int TW68_buffer_requeue(struct TW68_dev *dev, struct TW68_dmaqueue *q)
 		if (NULL == prev) {
 			list_move_tail(&buf->vb.queue, &q->active);
 			buf->activate(dev, buf, NULL);
-			printk("%s: [%p/%d] first active\n",
+			dprintk("%s: [%p/%d] first active\n",
 			       __func__, buf, buf->vb.i);
-
 		} else {
 			list_move_tail(&buf->vb.queue, &q->active);
 			buf->activate(dev, buf, NULL);
-			/// printk( "%s: [%p/ %p] move to active\n", __func__, buf, buf->vb.i);
 		}
-		{
-			//printk( "%s: no action taken\n", __func__);
-			return 0;
-		}
-		prev = buf;
 
 		return 0;
 
@@ -457,7 +442,6 @@ void TW68_buffer_finish(struct TW68_dev *dev,
 	q->curr->vb.state = state;
 	do_gettimeofday(&q->curr->vb.ts);
 
-	/// printk("_buffer_finish ::buffer_finish %p -> NULL  k %p \n",q->curr, k);
 	wake_up(&q->curr->vb.done);
 	q->curr = NULL;
 
@@ -482,7 +466,6 @@ void TW68_buffer_next(struct TW68_dev *dev, struct TW68_dmaqueue *q)
 
 		buf->vb.state = VIDEOBUF_ACTIVE;
 
-		///printk(KERN_INFO " $$$ buffer_activate  buf->vb.state = VIDEOBUF_ACTIVE; \n");
 		mod_timer(&q->timeout, jiffies + BUFFER_TIMEOUT);
 	} else {
 		/* nothing to do -- just stop DMA */
@@ -508,19 +491,12 @@ void Field_SG_Mapping(struct TW68_dev *dev, int field_PB)	//    0 1
 	if (!list_empty(&q->queued)) {
 		/* get next buffer from  dma queue */
 		buf = list_entry(q->queued.next, struct TW68_buf, vb.queue);
-		//
-		printk
-		    ("@@@@ locate buffer_next %p [prev=%p/next=%p]   &buf->vb.queue= %p \n",
-		     buf, q->queued.prev, q->queued.next, &buf->vb.queue);
 
 		// fill half frame SG mapping entries
 		dma = videobuf_to_dma(&buf->vb);
 		list = dma->sglist;
 		// dma channel offset = 8192 /8 /4 /2;
 		ptr = dev->m_Page0.cpu + (2 * 128 * nId);	// channel start entry address
-
-		printk("Field_SG_Mapping  size %ld  Video Frame\n",
-		       buf->vb.size);
 
 		pt = &dev->m_Page0;
 		BUG_ON(NULL == pt || NULL == pt->cpu);
@@ -529,13 +505,11 @@ void Field_SG_Mapping(struct TW68_dev *dev, int field_PB)	//    0 1
 		pgn = 83;
 		// dma channel offset = 8192 /8 /4 /2;
 		ptr = pt->cpu + (2 * nIDX * nId);	// channel start entry address   128
-		///printk("--_pgtable--nId 2 -- CPU ptr %p  P start address %p  &  dma_address %p \n", pt->cpu, ptr, pt->dma );
 
 		FieldSize = buf->vb.size / 2;
 
 		nbytes = 0;
 		for (i = 0; i < dma->sglen; i++, list++)
-			///for (p = 0; p * 4096 < list->length; p++, ptr++)
 		{
 			// switch to B
 			if (((nbytes + list->length) >= FieldSize)
@@ -551,8 +525,6 @@ void Field_SG_Mapping(struct TW68_dev *dev, int field_PB)	//    0 1
 					     ((m_CurrentFrameStartIdx & 0xFF) <<
 					      14) | ((m_NextFrameStartIdx &
 						      0xFF) << 21) |
-					     //(((m_nIncomingFrameCnt[id]>12)&(MappingNum ==0)&1)<<13)       |
-					     //( 1<<13)      |
 					     (remain & 0x1FFF));	// size
 
 					if (field_PB)
@@ -565,28 +537,18 @@ void Field_SG_Mapping(struct TW68_dev *dev, int field_PB)	//    0 1
 					else
 						*(ptr++) = cpu_to_le32(sg_dma_address(list) - list->offset);	/// setup page dma address
 
-					printk
-					    ("--_pgtable P/B switch ptr: %p  *(ptr-1)%x, *ptr%x  nbytes%d  FieldSize%d  remain%d   i%d\n",
-					     ptr, *(ptr - 1), *ptr, nbytes,
-					     FieldSize, remain, i);
 				}
 
 				remain = (nbytes + list->length) - FieldSize;
 				nbytes += list->length;
 
 				ptr = (pt->cpu + (2 * nIDX * nId)) + 0x800;	// 2 pages distance
-				printk
-				    ("--_pgtable P/B i%d ->B  new ptr: %p    pt->cpu %p   nbytes%d  FieldSize%d  remain%d    \n",
-				     i, ptr, pt->cpu, nbytes, FieldSize,
-				     remain);
 
 				dwCtrl =
 				    (((DMA_STATUS_HOST_READY & 0x3) << 30) |
 				     (((1) & 1) << 29) |
 				     ((m_CurrentFrameStartIdx & 0xFF) << 14) |
 				     ((m_NextFrameStartIdx & 0xFF) << 21) |
-				     //(((m_nIncomingFrameCnt[id]>12)&(MappingNum ==0)&1)<<13)       |
-				     //( 1<<13)      |
 				     (remain & 0x1FFF));	// size
 
 				if (field_PB)
@@ -598,14 +560,6 @@ void Field_SG_Mapping(struct TW68_dev *dev, int field_PB)	//    0 1
 					*(ptr++) = cpu_to_le32(sg_dma_address(list) - list->offset + list->length - remain);	/// setup page dma address
 				else
 					ptr++;
-
-				printk
-				    ("--_pgtable P/B switch ptr: %p  *(ptr-1)%x, *ptr%x  nbytes%d  FieldSize%d  remain%d    i%d\n",
-				     ptr, *(ptr - 1), *ptr, nbytes, FieldSize,
-				     remain, i);
-
-				///printk("--_pgtable P/B switch ptr: %p  nbytes%d  FieldSize%d  remain%d \n", ptr, nbytes, FieldSize, remain);
-
 			}
 
 			else {
@@ -631,10 +585,8 @@ void Field_SG_Mapping(struct TW68_dev *dev, int field_PB)	//    0 1
 			}
 
 		}
-	} else {
-		/* nothing to do -- just stop DMA */
-		printk("buffer_next %p   no more buffer \n", NULL);
-	}
+	} 
+	/* else: nothing to do -- just stop DMA */
 }
 
 void Fixed_SG_Mapping(struct TW68_dev *dev, int nDMA_channel, int Frame_size)	//    0 1
@@ -652,9 +604,6 @@ void Fixed_SG_Mapping(struct TW68_dev *dev, int nDMA_channel, int Frame_size)	//
 	__le32 *ptr;
 	u32 nId = nDMA_channel;
 
-	///printk("@@@@ locate buffer_next %p [prev=%p/next=%p]   &buf->vb.queue= %p \n",
-	///     buf, q->queue.prev,q->queue.next,  &buf->vb.queue);
-
 	// fill P field half frame SG mapping entries
 	Field_P = &dev->Field_P[nId];
 	Field_B = &dev->Field_B[nId];
@@ -662,10 +611,6 @@ void Fixed_SG_Mapping(struct TW68_dev *dev, int nDMA_channel, int Frame_size)	//
 	pt = &dev->m_Page0;
 	BUG_ON(NULL == pt || NULL == pt->cpu);
 	FieldSize = Frame_size / 2;
-
-	/// printk("$$$$Fixed_SG_Mapping  nId %d  size %d  Video Frame %d\n", nId, FieldSize, Frame_size);
-	/// printk("&&&&&&&&&&&&&&& Fill DMA table pt %p, length %d   startpage %d    L->length %d  \n",
-	///         pt, length, startpage, list->length);
 
 	nIDX = 128;		///85;
 	//// pgn = 85;   /// FieldSize / 4096;
@@ -689,20 +634,13 @@ void Fixed_SG_Mapping(struct TW68_dev *dev, int nDMA_channel, int Frame_size)	//
 			remain = FieldSize - nbytes;
 		}
 
-		if (remain != 4096)	// 0x1000
-		{
-			/// printk("--#######@@@@@@@@@@@@@@@@@@@@_pgtable--nId %d     i=%d      remain=  %d   \n", nId, i, remain );
-		}
-
 		if (remain <= 0)
 			break;
-		///goto FieldB;
 
 		{
 
 			dwCtrl = (((DMA_STATUS_HOST_READY & 0x3) << 30) |
 				  (((i == 0) & 1) << 29) |
-				  ///(1<<29)|
 				  ((m_CurrentFrameStartIdx & 0x7F) << 14) | ((m_NextFrameStartIdx & 0xFF) << 21) | ((pgn > 70) << 13) |	///   70
 				  (remain & 0x1FFF));	// size
 
@@ -715,7 +653,6 @@ void Fixed_SG_Mapping(struct TW68_dev *dev, int nDMA_channel, int Frame_size)	//
 		}
 	}
 
-///FieldB:
 	remain = 0;		/// (nbytes + sglist->length) - FieldSize;
 	nbytes = 0;
 	sglist = Field_B->sglist;
@@ -730,30 +667,20 @@ void Fixed_SG_Mapping(struct TW68_dev *dev, int nDMA_channel, int Frame_size)	//
 			remain = FieldSize - nbytes;
 		}
 
-		if (remain != 4096)	// 0x1000
-		{
-			/// printk("--#######@@@@@@@@@@@@@@@@@@@@_pgtable--nId %d     i=%d      remain=  %d   \n", nId, i, remain );
-
-		}
-
 		if (remain <= 0)
 			break;
 
-		/// if (remain >0)
-		{
+		dwCtrl = (((DMA_STATUS_HOST_READY & 0x3) << 30) |
+			  (((i == 0) & 1) << 29) |
+			  ///(1<<29)|
+			  ((m_CurrentFrameStartIdx & 0x7F) << 14) |	/// 0xFF
+			  ((m_NextFrameStartIdx & 0xFF) << 21) | ((pgn > 70) << 13) | (remain & 0x1FFF));	// size
 
-			dwCtrl = (((DMA_STATUS_HOST_READY & 0x3) << 30) |
-				  (((i == 0) & 1) << 29) |
-				  ///(1<<29)|
-				  ((m_CurrentFrameStartIdx & 0x7F) << 14) |	/// 0xFF
-				  ((m_NextFrameStartIdx & 0xFF) << 21) | ((pgn > 70) << 13) | (remain & 0x1FFF));	// size
+		*(ptr++) = cpu_to_le32(dwCtrl);
 
-			*(ptr++) = cpu_to_le32(dwCtrl);
+		*(ptr++) = cpu_to_le32(sg_dma_address(sglist) - sglist->offset);	/// setup page dma address
 
-			*(ptr++) = cpu_to_le32(sg_dma_address(sglist) - sglist->offset);	/// setup page dma address
-
-			nbytes += sglist->length;	/// remain
-		}
+		nbytes += sglist->length;	/// remain
 	}
 
 }
@@ -783,10 +710,6 @@ void BFDMA_setup(struct TW68_dev *dev, int nDMA_channel, int H, int W)	//    Fie
 	regDW |= dwV;
 	reg_writel(PHASE_REF_CONFIG, regDW);
 	dwV = reg_readl(PHASE_REF_CONFIG);
-
-	//  printk(KERN_INFO "DMA mode setup %s: %d PHASE_REF_CONFIG  dn 0x%lx    0x%lx  0x%lx  H%d W%d  \n",  
-	//              dev->name, nDMA_channel, regDW, dwV,  dn, H, W );
-
 }
 
  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -800,13 +723,9 @@ int Field_Copy(struct TW68_dev *dev, int nDMA_channel, int field_PB)
 	struct dma_region *Field_P;
 	struct dma_region *Field_B;
 
-	/// printk(KERN_INFO " Field_Copy:  start 0000\n");
 	int nId = nDMA_channel + 1;
 
 	void *vbuf, *srcbuf;	// = videobuf_to_vmalloc(&buf->vb);
-
-	///printk("@@@@ locate buffer_next %p [prev=%p/next=%p]   &buf->vb.queue= %p \n",
-	///     buf, q->queue.prev,q->queue.next,  &buf->vb.queue);
 
 	// fill P field half frame SG mapping entries
 	Field_P = &dev->Field_P[nDMA_channel];
@@ -818,12 +737,6 @@ int Field_Copy(struct TW68_dev *dev, int nDMA_channel, int field_PB)
 
 	q = &dev->video_dmaq[nId];	///  &dev->video_q;
 
-	//  printk(KERN_INFO " nId%d   Field_Copy:  get DMA queue:%p,   curr %p\n", nId, q, q->curr);
-	/*
-	   printk(KERN_INFO " Field_Copy:  get DMA queue list head:%p, \n", q->queue);
-	   printk(KERN_INFO " Field_Copy:  get DMA queue list head address:%p, \n", &q->queue);
-	 */
-
 	if (q->curr) {
 		buf = q->curr;
 		vbuf = videobuf_to_vmalloc(&buf->vb);
@@ -834,16 +747,12 @@ int Field_Copy(struct TW68_dev *dev, int nDMA_channel, int field_PB)
 		pitch = Wmax * buf->fmt->depth / 8;
 		pos = pitch * (field_PB);
 
-		/// printk(KERN_INFO " Field_Copy:  start @@@@@@@@\n");   /// vbuf null
-
 		for (h = 0; h < Hmax; h++) {
 			memcpy(vbuf + pos, srcbuf, pitch);
 			pos += pitch * 2;
 			srcbuf += pitch;
 		}
-		printk(KERN_INFO " Field_Copy:  Done ******\n");
 	} else {
-		printk(" Field_Copy:::::::::     list_empty  \n");
 		return 0;
 	}
 	return 1;
@@ -885,9 +794,7 @@ int BF_Copy(struct TW68_dev *dev, int nDMA_channel, u32 Fn, u32 PB)
 			pos = pitch;
 
 		memcpy(vbuf, srcbuf, Hmax * 2 * pitch);	//Test the top half frame
-		printk(KERN_INFO " BField_Copy:  Done *******\n");
 	} else {
-		printk(" Block [][] Field_Copy:::::::::     list_empty  \n");
 		return 0;
 	}
 	return 1;
@@ -899,7 +806,6 @@ int QF_Field_Copy(struct TW68_dev *dev, int nDMA_channel, u32 Fn, u32 PB)
 	struct TW68_buf *buf = NULL;	///,*next = NULL;
 	int Hmax, Wmax, h, n, pos, pitch, stride;
 
-	/// printk(KERN_INFO " Field_Copy:  start 0000\n");
 	int nId = 0;
 
 	void *vbuf, *srcbuf;	// = videobuf_to_vmalloc(&buf->vb);
@@ -939,7 +845,6 @@ int QF_Field_Copy(struct TW68_dev *dev, int nDMA_channel, u32 Fn, u32 PB)
 			srcbuf += stride;
 
 		}
-		printk(KERN_INFO " QField_Copy:  Done *******\n");
 	} else {
 		return 0;
 	}
@@ -1013,7 +918,6 @@ void DecoderResize(struct TW68_dev *dev, int nId, int nHeight, int nWidth)
 
 	nHW = nWidth | (nHeight << 16) | (1 << 31);
 	nH = nW = nHW;
-	printk("DecoderResize() :: nId:%d,  H:%d  W:%d   HW %X  HDELAY0 %X\n", nId, nHeight, nWidth, nHW, nVal);	/// read default  0x0a;
 
 	//Video Size
 	reg_writel(VIDEO_SIZE_REG, nHW);	//for Rev.A backward compatible
@@ -1138,37 +1042,17 @@ u64 GetDelay(struct TW68_dev *dev, int eno)
 	last = 0;
 	pause = 40;		// 20  30  50
 
-/*	
-	if (eno > 1)
-		pause = 30;     
-
-	if (eno > 3)	
-		pause = 60;
-*/
-
-	/// printk("\n $$$$$$$$$$$$$$$$ go through timers:   jiffies:0x%X ", jiffies);
-	for (k = 0; k < 8; k++) {
-		/// delay = dev->video_dmaq[k].restarter.expires;
-		///printk( " 0X%x ", delay);
-		// last = (delay > last) ? delay : last;
-	}
-
-	///delay = (last >jiffies) ? last : jiffies;
-	///printk( " last 0X%x   jiffies 0X%x ", last, jiffies);
 	now = jiffies;
 	if (last > now)
 		delay = last;
 	else
 		delay = jiffies;
 
-	///printk(" delay:0x%X  ", delay);
 	if ((delay == jiffies) && ((last + msecs_to_jiffies(pause)) > delay))
 		delay = last + msecs_to_jiffies(pause);
-	///printk(" delay:0x%X  ", delay);
 
 	delay += msecs_to_jiffies(pause);
 
-	///printk("\n $$$$$$$$$$$$$$$$ search delay :  40 msec %d        last:0X%x    jiffies:0X%x    delay:0X%x   \n", msecs_to_jiffies(40),  last, jiffies, delay );
 	return delay;
 }
 
@@ -1178,7 +1062,7 @@ void TW68_buffer_timeout(unsigned long data)
 
 	struct TW68_dmaqueue *q = (struct TW68_dmaqueue *)data;
 	struct TW68_dev *dev = q->dev;
-	///unsigned long flags;
+
 	int nId = q->DMA_nCH;
 
 	if (q->curr) {
@@ -1186,9 +1070,6 @@ void TW68_buffer_timeout(unsigned long data)
 		dwRegE = reg_readl(DMA_CHANNEL_ENABLE);
 		dwRegF = reg_readl(DMA_CMD);
 
-		printk
-		    (" TW68_buffer_timeout ????????  DMA %d  || 0x%X  ||0X%X     timeout on dma queue %p\n",
-		     nId, dwRegE, dwRegF, q->curr);
 		TW68_buffer_finish(dev, q, VIDEOBUF_ERROR);
 	}
 	TW68_buffer_next(dev, q);
@@ -1199,7 +1080,7 @@ void TW68_buffer_timeout(unsigned long data)
 int TW68_set_dmabits(struct TW68_dev *dev, unsigned int DMA_nCH)
 {
 	u32 dwRegST, dwRegER, dwRegPB, dwRegE, dwRegF, nId, k, run;
-	nId = DMA_nCH;		////
+	nId = DMA_nCH;
 
 	dwRegST = reg_readl(DMA_INT_STATUS);
 
@@ -1211,12 +1092,10 @@ int TW68_set_dmabits(struct TW68_dev *dev, unsigned int DMA_nCH)
 
 	dwRegF = reg_readl(DMA_CMD);
 
-	/// printk(" _dmabits _set_dmabits : DMA_INT_STATUS 0X%X  DMA_INT_ERROR%X  DMA_PB_STATUS%X  DMA_CHANNEL_ENABLE %x  DMA_CMD %X \n", dwRegST, dwRegER, dwRegPB, dwRegE, dwRegF);
-
-	dev->video_DMA_1st_started += 1;	//++
+	dev->video_DMA_1st_started += 1;
 	dev->video_dmaq[DMA_nCH].FieldPB = 0;
 
-	dwRegE |= (1 << nId);	// +1 + 0  Fixed PB
+	dwRegE |= (1 << nId);
 
 	dev->videoCap_ID |= (1 << nId);
 	dev->videoDMA_ID |= (1 << nId);
@@ -1233,14 +1112,8 @@ int TW68_set_dmabits(struct TW68_dev *dev, unsigned int DMA_nCH)
 	dwRegF = (1 << 31);
 	dwRegF |= dwRegE;
 	reg_writel(DMA_CMD, dwRegF);
-	///dwRegF = reg_readl(DMA_CMD);
-	/// printk(" set_dmabits ?????????????? _set_dmabits : DMA_CHANNEL_ENABLE %x  DMA_CMD %X \n", dwRegE, dwRegF);
-
-	/// printk(" TW68_set_dmabits _set_dmabits : DMA_INT_STATUS%X  DMA_INT_ERROR%X  DMA_PB_STATUS%X  DMA_CHANNEL_ENABLE %x  DMA_CMD %X \n", dwRegST, dwRegER, dwRegPB, dwRegE, dwRegF);
 	return 0;
 }
-
-/////////////////////////////////////////////////////////////
 
 int stop_video_DMA(struct TW68_dev *dev, unsigned int DMA_nCH)
 {
@@ -1269,8 +1142,7 @@ int stop_video_DMA(struct TW68_dev *dev, unsigned int DMA_nCH)
 		reg_writel(DMA_CHANNEL_ENABLE, 0);
 
 	}
-	/// printk(KERN_INFO " -------------stop_video_DMA   DMA_CHANNEL_ENABLE 0x%X,  DMA_CMD 0x%X,  DMA_INT_STATUS 0x%08X \n",
-	///             dwRegE, dwRegF,  dwRegST      );
+
 	return 0;
 }
 
@@ -1293,15 +1165,8 @@ int VideoDecoderDetect(struct TW68_dev *dev, unsigned int DMA_nCH)
 	if ((regDW & 1))	//&& (!(dwReg & 0x80)))   ///skip the detection glitch     //detect properly
 	{
 		// set to PAL 50 for real...
-		// VDelay
-		printk
-		    ("50HZ VideoStandardDetect DMA_nCH %d  regDW 0x%x  dwReg%d \n",
-		     DMA_nCH, regDW, dwReg);
 		return 50;
 	} else {
-		printk
-		    ("60HZ VideoStandardDetect DMA_nCH %d  regDW 0x%x  dwReg%d \n",
-		     DMA_nCH, regDW, dwReg);
 		return 60;
 
 	}
@@ -1339,8 +1204,6 @@ void video_tasklet(unsigned long device)
 
 }
 
-/* ------------------------------------------------------------------ */
-
 static irqreturn_t TW68_irq(int irq, void *dev_id)	/// hardware dev id for the ISR
 {
 	struct TW68_dev *dev = (struct TW68_dev *)dev_id;
@@ -1349,7 +1212,6 @@ static irqreturn_t TW68_irq(int irq, void *dev_id)	/// hardware dev id for the I
 	static int INT1st = 1;
 	static u32 lastPB = 0;
 
-	// __le32  *pdmaP, *pdmaB;
 	audio_ch = 1;
 	handled = 1;
 
@@ -1363,14 +1225,8 @@ static irqreturn_t TW68_irq(int irq, void *dev_id)	/// hardware dev id for the I
 	dwRegF = reg_readl(DMA_CMD);
 	spin_unlock_irqrestore(&dev->slock, flags);
 
-	///////////////////////////////////////////////////////////////////////////
 	if (dev->videoDMA_ID != dwRegE) {
 		INT1st++;
-		if (INT1st < 10)
-			printk(KERN_INFO
-			       " -------------Check DMA   DMA_CHANNEL_ENABLE 0x%X,  DMA_CMD 0x%X,  DMA_INT_STATUS 0x%08X   videoDMA_ID 0x%X\n",
-			       dwRegE, dwRegF, dwRegST, dev->videoDMA_ID);
-
 	}
 
 	if ((dwRegER & 0xFF000000) && dev->video_DMA_1st_started
@@ -1425,10 +1281,6 @@ static irqreturn_t TW68_irq(int irq, void *dev_id)	/// hardware dev id for the I
 			dev->errlog[0] = jiffies;
 
 		} else {
-			// Normal interrupt:
-			// printk("  Normal interrupt:  ++++ ## dma_status 0x%X   FIFO =0x%X   (video parser)=0X%x   int_status 0x%x  PB 0x%x  # dwRegE 0X%x dwRegF 0X%x \n", 
-			//          dwRegST, dwRegER, dwRegVP,  dwRegST, dwRegPB, dwRegE, dwRegF);
-
 			if (dwRegST & (0xFF00) & dev->videoDMA_ID) {
 				TW68_alsa_irq(dev, dwRegST, dwRegPB);
 
@@ -1509,7 +1361,6 @@ static irqreturn_t TW68_irq(int irq, void *dev_id)	/// hardware dev id for the I
 		}
 
 		handled = 0;
-		/// printk("---+++++++++ skip IRQ: DMA_INT_STATUS 0X%X  DMA_INT_ERROR%X  DMA_PB_STATUS%X  DMA_CHANNEL_ENABLE %x  DMA_CMD %X  k:%x\n", dwRegST, dwRegER, dwRegPB, dwRegE, dwRegF, k);
 	}
 
 	return IRQ_RETVAL(handled);
@@ -1532,64 +1383,29 @@ static int TW68_hwinit1(struct TW68_dev *dev)
 	int audio_ch;
 	u32 dmaP, dmaB;
 
-	printk(" TW6869 hwinit1 \n");
 	mutex_init(&dev->lock);
 	spin_lock_init(&dev->slock);
 
-	/////////////////////////////////////////////////////////////////////////
-
-	pci_read_config_dword(dev->pci, PCI_VENDOR_ID, &regDW);
-
-	// printk(KERN_INFO "%s: found with ID: 0x%lx\n", dev->name,  regDW );
-
 	pci_read_config_dword(dev->pci, PCI_COMMAND, &regDW);	// 04 PCI_COMMAND
-	printk(KERN_INFO "%s: CFG[0x04] PCI_COMMAND :  0x%x\n", dev->name,
-	       regDW);
-
 	regDW |= 7;
 	regDW &= 0xfffffbff;
 	pci_write_config_dword(dev->pci, PCI_COMMAND, regDW);
-	pci_read_config_dword(dev->pci, 0x4, &regDW);
-	//  printk(KERN_INFO "%s: CFG[0x04]   0x%lx\n", dev->name,  regDW );
 
-	pci_read_config_dword(dev->pci, 0x3c, &regDW);
-	// printk(KERN_INFO "%s: CFG[0x3c]   0x%lx\n", dev->name,  regDW );
 
 	// MSI CAP     disable MSI
 	pci_read_config_dword(dev->pci, 0x50, &regDW);
 	regDW &= 0xfffeffff;
 	pci_write_config_dword(dev->pci, 0x50, regDW);
-	pci_read_config_dword(dev->pci, 0x50, &regDW);
-	//  printk(KERN_INFO "%s: CFG[0x50]   0x%lx\n", dev->name,  regDW );
+
 	//  MSIX  CAP    disable
 	pci_read_config_dword(dev->pci, 0xac, &regDW);
 	regDW &= 0x7fffffff;
 	pci_write_config_dword(dev->pci, 0xac, regDW);
-	pci_read_config_dword(dev->pci, 0xac, &regDW);
-	//  printk(KERN_INFO "%s: CFG[0xac]   0x%lx\n", dev->name,  regDW );
-
-	// PCIe Cap registers
-	pci_read_config_dword(dev->pci, 0x70, &regDW);
-	// printk(KERN_INFO "%s: CFG[0x70]   0x%lx\n", dev->name,  regDW );
-	pci_read_config_dword(dev->pci, 0x74, &regDW);
-	// printk(KERN_INFO "%s: CFG[0x74]   0x%lx\n", dev->name,  regDW );
 
 	pci_read_config_dword(dev->pci, 0x78, &regDW);
 	regDW &= 0xfffffe1f;
 	regDW |= (0x8 << 5);	///  8 - 128   ||  9 - 256  || A - 512
 	pci_write_config_dword(dev->pci, 0x78, regDW);
-
-	pci_read_config_dword(dev->pci, 0x78, &regDW);
-	//  printk(KERN_INFO "%s: CFG[0x78]   0x%lx\n", dev->name,  regDW );
-
-	pci_read_config_dword(dev->pci, 0x730, &regDW);
-	//  printk(KERN_INFO "%s: CFG[0x730]   0x%lx\n", dev->name,  regDW );
-
-	pci_read_config_dword(dev->pci, 0x734, &regDW);
-	//  printk(KERN_INFO "%s: CFG[0x734]   0x%lx\n", dev->name,  regDW );
-
-	pci_read_config_dword(dev->pci, 0x738, &regDW);
-	//  printk(KERN_INFO "%s: CFG[0x738]   0x%lx\n", dev->name,  regDW );
 
 	mdelay(20);
 	reg_writel(DMA_CHANNEL_ENABLE, 0);
@@ -1601,33 +1417,16 @@ static int TW68_hwinit1(struct TW68_dev *dev)
 
 	//Trasmit Posted FC credit Status
 	reg_writel(EP_REG_ADDR, 0x730);	//
-	regDW = reg_readl(EP_REG_DATA);
-	//printk(KERN_INFO "%s: PCI_CFG[Posted 0x730]= 0x%lx\n", dev->name,  regDW );
 
 	//Trasnmit Non-Posted FC credit Status
 	reg_writel(EP_REG_ADDR, 0x734);	//
-	regDW = reg_readl(EP_REG_DATA);
-	//printk(KERN_INFO "%s: PCI_CFG[Non-Posted 0x734]= 0x%lx\n", dev->name,  regDW );
 
 	//CPL FC credit Status
 	reg_writel(EP_REG_ADDR, 0x738);	//
-	regDW = reg_readl(EP_REG_DATA);
-	//printk(KERN_INFO "%s: PCI_CFG[CPL 0x738]= 0x%lx\n", dev->name,  regDW );
-
-	/////////////////////////////////////////////////////////////////////////////////////////////
-
-	regDW = reg_readl((SYS_SOFT_RST));
-	/// printk(KERN_INFO "HWinit %s: SYS_SOFT_RST  0x%lx    \n",  dev->name, regDW );
-	///regDW = tw_readl( SYS_SOFT_RST );
-	///printk(KERN_INFO "DMA %s: SYS_SOFT_RST  0x%lx    \n",  dev->name, regDW );
 
 	reg_writel((SYS_SOFT_RST), 0x01);	//??? 01   09
 	reg_writel((SYS_SOFT_RST), 0x0F);
-	regDW = reg_readl(SYS_SOFT_RST);
-	///printk(KERN_INFO " After software reset DMA %s: SYS_SOFT_RST  0x%lx    \n",  dev->name, regDW );
 
-	regDW = reg_readl(PHASE_REF_CONFIG);
-	///printk(KERN_INFO "HWinit %s: PHASE_REF_CONFIG  0x%lx    \n",  dev->name, regDW );
 	regDW = 0x1518;
 	reg_writel(PHASE_REF_CONFIG, regDW & 0xFFFF);
 
@@ -1640,7 +1439,6 @@ static int TW68_hwinit1(struct TW68_dev *dev)
 		    (&dev->Field_P[k], 720 * 600 * 2, dev->pci,
 		     PCI_DMA_BIDIRECTIONAL))
 		{
-			/// printk(KERN_ERR,  "Failed to allocate dma buffer");
 			dma_field_free(&dev->Field_P[k]);
 			return -1;
 		}
@@ -1648,7 +1446,6 @@ static int TW68_hwinit1(struct TW68_dev *dev)
 		    (&dev->Field_B[k], 720 * 600 * 2, dev->pci,
 		     PCI_DMA_BIDIRECTIONAL))
 		{
-			/// printk(KERN_ERR, "Failed to allocate dma buffer");
 			dma_field_free(&dev->Field_B[k]);
 			return -1;
 		}
@@ -1661,7 +1458,6 @@ static int TW68_hwinit1(struct TW68_dev *dev)
 	m_bDropField = 0;
 	m_bDropOddOrEven = 0;
 
-//      m_nVideoFormat = VIDEO_FORMAT_RGB565;
 	m_nVideoFormat = VIDEO_FORMAT_YUYV;
 	for (k = 0; k < MAX_NUM_SG_DMA; k++) {
 		m_StartIdx = ChannelOffset * k;
@@ -1678,7 +1474,6 @@ static int TW68_hwinit1(struct TW68_dev *dev)
 
 		reg_writel(DMA_CH0_CONFIG + k, m_dwCHConfig);
 		dwReg = reg_readl(DMA_CH0_CONFIG + k);
-		/// printk(" ********#### buffer_setup%d::  m_StartIdx 0X%x  0x%X  dwReg: 0x%X  m_dwCHConfig 0x%X  \n", k, m_StartIdx, pgn,  m_dwCHConfig, dwReg );
 
 		reg_writel(VERTICAL_CTRL, 0x24);	//0x26 will cause ch0 and ch1 have dma_error.  0x24
 		reg_writel(LOOP_CTRL, 0xA5);	// 0xfd   0xA5     /// 1005
@@ -1700,70 +1495,20 @@ static int TW68_hwinit1(struct TW68_dev *dev)
 
 
 
-	regDW = reg_readl((DMA_PAGE_TABLE0_ADDR));
-	printk(KERN_INFO "DMA %s: DMA_PAGE_TABLE0_ADDR  0x%x    \n", dev->name,
-	       regDW);
-	regDW = reg_readl((DMA_PAGE_TABLE1_ADDR));
-	printk(KERN_INFO "DMA %s: DMA_PAGE_TABLE1_ADDR  0x%x    \n", dev->name,
-	       regDW);
 
 	reg_writel((DMA_PAGE_TABLE0_ADDR), dev->m_Page0.dma);	//P DMA page table
 	reg_writel((DMA_PAGE_TABLE1_ADDR), dev->m_Page0.dma + (PAGE_SIZE << 1));	//B DMA page table
-
-	regDW = reg_readl((DMA_PAGE_TABLE0_ADDR));
-	printk(KERN_INFO "DMA %s: DMA_PAGE_TABLE0_ADDR  0x%x    \n", dev->name,
-	       regDW);
-	regDW = reg_readl((DMA_PAGE_TABLE1_ADDR));
-	printk(KERN_INFO "DMA %s: DMA_PAGE_TABLE1_ADDR  0x%x    \n", dev->name,
-	       regDW);
-
 	reg_writel(AVSRST, 0x3F);	// u32
-	regDW = reg_readl(AVSRST);
-	printk(KERN_INFO "DMA %s: tw AVSRST _u8 %x :: 0x%x    \n", dev->name,
-	       (AVSRST << 2), regDW);
-
 	reg_writel(DMA_CMD, 0);	// u32
-	regDW = reg_readl(DMA_CMD);
-	printk(KERN_INFO "DMA %s: tw DMA_CMD _u8 %x :: 0x%x    \n", dev->name,
-	       (DMA_CMD << 2), regDW);
-
 	reg_writel(DMA_CHANNEL_ENABLE, 0);
-	regDW = reg_readl(DMA_CHANNEL_ENABLE);
-	printk(KERN_INFO "DMA %s: tw DMA_CHANNEL_ENABLE %x :: 0x%x    \n",
-	       dev->name, DMA_CHANNEL_ENABLE, regDW);
-
-	regDW = reg_readl(DMA_CHANNEL_ENABLE);
-	printk(KERN_INFO "DMA %s: tw DMA_CHANNEL_ENABLE %x :: 0x%x    \n",
-	       dev->name, DMA_CHANNEL_ENABLE, regDW);
-	//reg_writel(DMA_CHANNEL_TIMEOUT, 0x180c8F88);   //  860 a00  0x140c8560  0x1F0c8b08     0xF00F00   140c8E08   0x140c8D08
 	reg_writel(DMA_CHANNEL_TIMEOUT, 0x3EFF0FF0);	// longer timeout setting
-	regDW = reg_readl(DMA_CHANNEL_TIMEOUT);
-	printk(KERN_INFO "DMA %s: tw DMA_CHANNEL_TIMEOUT %x :: 0x%x    \n",
-	       dev->name, DMA_CHANNEL_TIMEOUT, regDW);
-
 	reg_writel(DMA_INT_REF, 0x38000);	///   2a000 2b000 2c000  3932e     0x3032e
-	regDW = reg_readl(DMA_INT_REF);
-	printk(KERN_INFO "DMA %s: tw DMA_INT_REF %x :: 0x%x    \n", dev->name,
-	       DMA_INT_REF, regDW);
-
 	reg_writel(DMA_CONFIG, 0x00FF0004);
-	regDW = reg_readl(DMA_CONFIG);
-	printk(KERN_INFO "DMA %s: tw DMA_CONFIG %x :: 0x%x    \n", dev->name,
-	       DMA_CONFIG, regDW);
-
 	regDW = (0xFF << 16) | (VIDEO_GEN_PATTERNS << 8) | VIDEO_GEN;
-
-	printk(KERN_INFO " set tw68 VIDEO_CTRL2 %x :: 0x%x    \n", VIDEO_CTRL2,
-	       regDW);
-
 	reg_writel(VIDEO_CTRL2, regDW);
-	regDW = reg_readl(VIDEO_CTRL2);
-	printk(KERN_INFO "DMA %s: tw DMA_CONFIG %x :: 0x%x    \n", dev->name,
-	       VIDEO_CTRL2, regDW);
 
 	//VDelay
 	regDW = 0x014;
-
 	reg_writel(VDELAY0, regDW);
 	reg_writel(VDELAY1, regDW);
 	reg_writel(VDELAY2, regDW);
@@ -1781,13 +1526,6 @@ static int TW68_hwinit1(struct TW68_dev *dev)
 
 	// 6869
 	reg_writel(MISC_CONTROL2 + 0x100, regDW);
-
-	regDW = reg_readl(VDELAY0);
-	printk(KERN_INFO " read tw68 VDELAY0 %x :: 0x%x    \n", VDELAY0, regDW);
-
-	regDW = reg_readl(MISC_CONTROL2);
-	printk(KERN_INFO " read tw68 MISC_CONTROL2 %x :: 0x%x    \n",
-	       MISC_CONTROL2, regDW);
 
 	// device data structure initialization
 	TW68_video_init1(dev);
@@ -1810,8 +1548,6 @@ static int TW68_hwinit1(struct TW68_dev *dev)
 /* shutdown */
 static int TW68_hwfini(struct TW68_dev *dev)
 {
-	dprintk("hwfini\n");
-
 	return 0;
 }
 
@@ -1826,8 +1562,6 @@ static int vdev_init(struct TW68_dev *dev, struct video_device *template,
 	for (k = 1; k < 9; k++)	// dev0  QF muxer  dev 1 ~ 4
 	{
 		vfdev[k] = video_device_alloc();
-
-		//vfdev[k] = vfd;
 
 		if (NULL == vfdev[k]) {
 			printk(KERN_WARNING "Null  vfdev %d **** \n\n", k);
@@ -1887,8 +1621,6 @@ static int TW68_initdev(struct pci_dev *pci_dev,
 	struct TW68_dev *dev;
 	int err, err0;
 
-	printk(KERN_INFO "PCI register init called\n");
-
 	if (TW68_devcount == TW68_MAXBOARDS)
 		return -ENOMEM;
 
@@ -1909,8 +1641,6 @@ static int TW68_initdev(struct pci_dev *pci_dev,
 
 	dev->nr = TW68_devcount;
 	sprintf(dev->name, "TW%x[%d]", pci_dev->device, dev->nr);
-
-	printk(KERN_INFO " %s TW68_devcount: %d \n", dev->name, TW68_devcount);
 
 	/* pci quirks */
 	if (pci_pci_problems) {
@@ -2120,11 +1850,6 @@ static struct pci_driver TW68_pci_driver = {
 	.id_table = TW68_pci_tbl,
 	.probe = TW68_initdev,
 	.remove = TW68_finidev,
-
-//#ifdef CONFIG_PM
-//      .suspend  = TW68_suspend,
-//      .resume   = TW68_resume
-//#endif
 };
 
 /* ----------------------------------------------------------- */

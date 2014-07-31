@@ -104,30 +104,14 @@ void TW68_alsa_irq(struct TW68_dev *dev, u32 dma_status, u32 pb_status)
 	u32 audio_PB = 0;
 	static u32 last_audio_PB = 0xFFFF;
 
-//	struct TW68_pgtable p_Audio = dev->m_AudioBuffer;
 	snd_card_TW68_t *card_TW68 =
 	    (snd_card_TW68_t *) dev->card->private_data;
 
-//	u8 *Audioptr = (u8 *) p_Audio.cpu;
-//	u8 *AudioVB = card_TW68->audio_ringbuffer;
-
-//      printk(  "%s()  card_TW68 pcm %p  dma_status %x  pb_status %x \n", __func__,  
-//                  card_TW68->TW68_pcm, dma_status, pb_status);
-
 	if (audio_irq) {
 		audio_PB = (pb_status >> 8) & audio_irq;
-		///printk(" Audio irq:%d   PB: %X \n", audio_irq,  audio_PB);
 		for (k = 0; k < 8; k++) {
 			if (audio_irq & (1 << k)) {
 				runtime = card_TW68->substream[k]->runtime;
-				/*
-				   printk(" TW68_alsa_irq  Audio CH:%d   aPB: %X   RUNTIME HWptr 0x%p, 0x%X, jf 0x%x Pdz 0x%x 0x%x  BFz 0x%x  DMA  %X  %X  %X\n",
-				   k,  ((audio_PB >>k)& 0x1), 
-				   runtime->hw_ptr_base, runtime->hw_ptr_interrupt, runtime->hw_ptr_jiffies, 
-				   runtime->period_size, runtime->periods, runtime->buffer_size,
-				   runtime->dma_area, runtime->dma_addr, runtime->dma_bytes
-				   );
-				 */
 				if (((last_audio_PB >> k) & 0x1) ^
 				    ((audio_PB >> k) & 0x1)) {
 					if (((audio_PB >> k) & 0x1) == 0) {
@@ -136,10 +120,6 @@ void TW68_alsa_irq(struct TW68_dev *dev, u32 dma_status, u32 pb_status)
 						runtime->status->hw_ptr = 0;
 						runtime->hw_ptr_interrupt = 0;
 						runtime->control->appl_ptr = 0;
-						//kb: added;
-						//AudioVB +=  PAGE_SIZE *2 *k;
-						//Audioptr+=  PAGE_SIZE *2 *k;
-						//memcpy(AudioVB, Audioptr, PAGE_SIZE);
 					} else {
 						last_audio_PB |= (1 << k);
 						runtime->hw_ptr_base =
@@ -148,21 +128,10 @@ void TW68_alsa_irq(struct TW68_dev *dev, u32 dma_status, u32 pb_status)
 						runtime->hw_ptr_interrupt = 0;
 						runtime->control->appl_ptr =
 						    runtime->hw_ptr_base;
-						//kb: added;
-						//AudioVB +=  (PAGE_SIZE *2 *k + PAGE_SIZE);
-						//Audioptr+=  (PAGE_SIZE *2 *k + PAGE_SIZE);
-						//memcpy(AudioVB, Audioptr, PAGE_SIZE);
 					}
 
 					snd_pcm_period_elapsed(card_TW68->substream[k]);	// call pointer
 				}
-				/*
-				   long avail = snd_pcm_capture_avail(runtime);
-
-				   printk( "TW68_alsa_irq:   card 0x%p,  substream 0x%p, runtime BD 0%d  hw_ptr 0x%p, runtime->control->appl_ptr 0x%p,  cap avail 0x%X\n", 
-				   card_TW68, card_TW68->substream[k], runtime->boundary, runtime->status->hw_ptr, runtime->control->appl_ptr, avail); ///runtime->xfer_align
-				 */
-
 			}
 		}
 	}
@@ -201,11 +170,6 @@ static int snd_card_TW68_capture_trigger(struct snd_pcm_substream *substream,
 	}
 
 	avail = snd_pcm_capture_avail(runtime);
-
-	//printk( "snd_card_TW68_capture_trigger:   card 0x%p,   runtime BD 0%d  hw_ptr 0x%p, runtime->control->appl_ptr 0x%p,  Cap avail xfer_align 0x%X\n", 
-	//              card_TW68,  runtime->boundary, runtime->status->hw_ptr, runtime->control->appl_ptr, avail);  ///runtime->xfer_align);
-
-	//spin_lock(&pcm->lock);
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
@@ -310,10 +274,6 @@ static int snd_card_TW68_capture_prepare(struct snd_pcm_substream *substream)
 	dwREG = ((125000000 << 5) / (Currenrt_SAMPLE_RATE >> 2)) << 9;
 	reg_writel(AUDIO_CTRL2, dwREG);
 	dwREGA = reg_readl(AUDIO_CTRL2);
-	printk("      AUDIO_CTRL2: 0x%x         0x%X\n", dwREGA, dwREG);
-
-	printk("%s() dev %p  substream->runtime->rate %d  dwREG: 0x%X\n",
-	       __func__, dev, Currenrt_SAMPLE_RATE, dwREG);
 	return 0;
 }
 
@@ -342,10 +302,6 @@ snd_card_TW68_capture_pointer(struct snd_pcm_substream *substream)
 static void snd_card_TW68_runtime_free(struct snd_pcm_runtime *runtime)
 {
 	snd_card_TW68_pcm_t *pcm = runtime->private_data;
-	//struct TW68_dev *dev = pcm->dev;
-
-	printk("%s()\n", __func__);
-
 	kfree(pcm);
 }
 
@@ -361,11 +317,6 @@ static void snd_card_TW68_runtime_free(struct snd_pcm_runtime *runtime)
 static int snd_card_TW68_hw_params(struct snd_pcm_substream *substream,
 				   struct snd_pcm_hw_params *hw_params)
 {
-	///int err = snd_pcm_lib_malloc_pages(substream, params_buffer_bytes(hw_params));
-	int err = 0;
-	printk("%s()  substream->runtime->rate %d  err:0x%X\n", __func__,
-	       substream->runtime->rate, err);
-	// return snd_pcm_lib_malloc_pages(substream, params_buffer_bytes(hw_params));
 	return 0;
 
 }
@@ -382,7 +333,6 @@ static int snd_card_TW68_hw_params(struct snd_pcm_substream *substream,
 
 static int snd_card_TW68_hw_free(struct snd_pcm_substream *substream)
 {
-	printk("%s()\n", __func__);
 	return 0;
 }
 
@@ -397,7 +347,6 @@ static int snd_card_TW68_hw_free(struct snd_pcm_substream *substream)
 
 static int snd_card_TW68_capture_close(struct snd_pcm_substream *substream)
 {
-	printk("%s()\n", __func__);
 	return 0;
 }
 
@@ -442,9 +391,6 @@ static int snd_card_TW68_capture_open(struct snd_pcm_substream *substream)
 	if (err < 0)
 		return err;
 
-	printk("%s()  substream %p  N:%d  %s rate %d  \n", __func__,
-	       substream, substream->number, substream->name, runtime->rate);
-
 	return 0;
 }
 
@@ -461,8 +407,6 @@ static int snd_TW68_pcm_copy(struct snd_pcm_substream *ss, int channel,
 			     snd_pcm_uframes_t pos, void __user * dst,
 			     snd_pcm_uframes_t count)
 {
-	//struct snd_card_TW68_pcm *pcm = snd_pcm_substream_chip(ss);
-	//int err, i;
 	int nId = ss->number;
 	long avail = 0;
 	struct snd_pcm_runtime *runtime = ss->runtime;
@@ -478,15 +422,8 @@ static int snd_TW68_pcm_copy(struct snd_pcm_substream *ss, int channel,
 		Audioptr += DMA_page;
 		AudioVB += DMA_page;
 	}
-	/*
-	   printk( "%s()  nId:%d;  count:%X %d  AP 0X%p ", __func__, nId, count, count, Audioptr);
 
-	   printk( "%s() dev 0x%p A 0x%X  k:%d  ss:%p  BF:%d  P:%d S:%d F:%d  \n", __func__, dev,  p_Audio.size, ss->number, ss, 
-	   runtime->buffer_size, runtime->period_size, runtime->sample_bits, runtime->frame_bits  );
-	 */
 	avail = snd_pcm_capture_avail(runtime);
-	//printk( "  card 0x%p,  TW68_pcm 0x%p  runtime BD 0%d  hw_ptr b0x%p, s0x%p, runtime->control->appl_ptr 0x%p,  Cap avail xfer_align 0x%X\n", 
-	//              card_TW68, pcm, runtime->boundary, runtime->hw_ptr_base, runtime->status->hw_ptr, runtime->control->appl_ptr, avail);  ///runtime->xfer_align);
 
 	AudioVB = Audioptr + DMA_page - (avail * runtime->frame_bits / 8);
 
@@ -528,7 +465,6 @@ static int snd_card_TW68_pcm_reg(snd_card_TW68_t * card_TW68, long idevice)
 	struct snd_pcm_substream *ss;
 	int err, i;
 
-	printk("%s()\n", __func__);
 	if ((err = snd_pcm_new(card_TW68->card, "TW6869 PCM", idevice, 0, audio_nCH, &pcm)) < 0)	//0, 1
 		return err;
 
@@ -545,8 +481,6 @@ static int snd_card_TW68_pcm_reg(snd_card_TW68_t * card_TW68, long idevice)
 	     ss; ss = ss->next, i++) {
 		sprintf(ss->name, "TW68 #%d Audio In ", i);
 		card_TW68->substream[i] = ss;
-		printk("%s() substream[%d] %p\n", __func__, i,
-		       card_TW68->substream[i]);
 
 	}
 	return 0;
@@ -557,7 +491,6 @@ static void snd_TW68_free(struct snd_card *card)
 	snd_card_TW68_t *card_TW68 = (snd_card_TW68_t *) card->private_data;
 	if (card_TW68->audio_ringbuffer)
 		vfree(card_TW68->audio_ringbuffer);
-	printk("%s()   card_TW68 %p\n", __func__, card_TW68);
 }
 
 /*
@@ -576,8 +509,6 @@ int TW68_alsa_create(struct TW68_dev *dev)
 	static struct snd_device_ops ops = { NULL };
 
 	int err;
-
-	printk("%s()\n", __func__);
 
 	if (TW68_audio_nPCM > (SNDRV_CARDS - 2))
 		return -ENODEV;
@@ -607,16 +538,13 @@ int TW68_alsa_create(struct TW68_dev *dev)
 
 	spin_lock_init(&card_TW68->lock);
 
-	printk("alsa: %s registered as card %s  card_TW68 %p  err :%d \n",
-	       card->longname, card->shortname, card_TW68, err);
-
 	if ((err = snd_card_TW68_pcm_reg(card_TW68, 0)) < 0)
 		goto __nodev;
 
 	///snd_card_set_dev(card, dev);
 
 	if (err < 0) {
-		printk("xxxxxx alsa: register TW68 card fail  :%d \n", err);
+		printk("alsa: register TW68 card fail  :%d \n", err);
 		return err;
 	}
 	printk("alsa: %s registered as PCM card %s  :%d \n", card->longname,
@@ -628,12 +556,8 @@ int TW68_alsa_create(struct TW68_dev *dev)
 		return 0;
 	}
 
-	printk("xxxxxx alsa: %s registered as card %s  :%d \n", card->longname,
-	       card->shortname, err);
-	///return err;
-
 __nodev:
-	printk("xxxxxx alsa: register TW68 card fail  :%d \n", err);
+	printk("alsa: register TW68 card fail  :%d \n", err);
 	snd_card_free(card);
 	return err;
 }

@@ -361,7 +361,6 @@ static const struct v4l2_queryctrl *ctrl_by_id(unsigned int id)
 static struct TW68_format *format_by_fourcc(unsigned int fourcc)
 {
 	unsigned int i;
-	printk("????????????????????? CHECK fourcc \n");
 
 	for (i = 0; i < FORMATS; i++)
 		if (formats[i].fourcc == fourcc)
@@ -380,8 +379,6 @@ static int res_get(struct TW68_dev *dev, struct TW68_fh *fh, unsigned int bit)
 	if (nId == 0xF)
 		nId = 0;
 
-	//if (nId >4)   return 0;  // this for 6864/6868  4 Ch
-
 	if (fh->resources & bit)
 		/* have it already allocated */
 		return 1;
@@ -391,17 +388,11 @@ static int res_get(struct TW68_dev *dev, struct TW68_fh *fh, unsigned int bit)
 	if (dev->resources[nId] & bit) {
 		/* no, someone else uses it */
 		mutex_unlock(&dev->lock);
-
-		printk("res: get %d     dev->resources[nId] %x\n", bit,
-		       dev->resources[nId]);
-
 		return 0;
 	}
 	/* it's free, grab it */
 	fh->resources |= bit;
 
-	//dev->resources[nId] |= bit;
-	printk("res: get %d\n", bit);
 	mutex_unlock(&dev->lock);
 	return 1;
 }
@@ -428,17 +419,14 @@ void res_free(struct TW68_fh *fh, unsigned int bits)
 {
 	struct TW68_dev *dev = fh->dev;
 
-	//BUG_ON((fh->resources & bits) != bits);
-
 	u32 nId = fh->DMA_nCH;
 	if (nId == 0xF)
 		nId = 0;
-	//if (nId >4)   return 0;
 
 	mutex_lock(&dev->lock);
 	fh->resources &= ~bits;
 	dev->resources[nId] &= ~bits;
-	printk(" %s  res: put %d\n", __func__, bits);
+
 	mutex_unlock(&dev->lock);
 }
 
@@ -447,8 +435,7 @@ void res_free(struct TW68_fh *fh, unsigned int bits)
 static void set_tvnorm(struct TW68_dev *dev, struct TW68_tvnorm *norm)
 {
 	int framesize;
-	dprintk("set tv norm = %s\n", norm->name);
-	printk("------set tv norm = %s\n", norm->name);
+
 	dev->tvnorm = norm;
 
 	/* setup cropping */
@@ -468,30 +455,7 @@ static void set_tvnorm(struct TW68_dev *dev, struct TW68_tvnorm *norm)
 
 	framesize = dev->crop_bounds.width * dev->crop_bounds.height * 16 >> 3;	// calculate byte size for 1 frame
 
-	printk
-	    ("------dev->crop setting   set tv norm = %s,  width%d   height%d  size %d\n",
-	     norm->name, dev->crop_bounds.width, dev->crop_bounds.height,
-	     framesize);
-
 }
-
-#if 0
-static void video_mux(struct TW68_dev *dev, int input)
-{
-	dprintk("video input = %d [%s]\n", input, card_in(dev, input).name);
-	printk("video %d input = %d [%s]\n", dev->ctl_input, input,
-	       card_in(dev, input).name);
-	dev->ctl_input = input;
-
-	printk("dev %p  video_mux: set_tvnorm(dev, dev->tvnorm -> 0X%p  \n",
-	       dev, dev->tvnorm);
-	if (dev->tvnorm)
-		set_tvnorm(dev, dev->tvnorm);
-	else
-		set_tvnorm(dev, &tvnorms[0]);
-
-}
-#endif
 
 /* ------------------------------------------------------------------ */
 
@@ -506,7 +470,6 @@ struct cliplist {
 static int buffer_activate(struct TW68_dev *dev,	///unsigned int nId,
 			   struct TW68_buf *buf, struct TW68_buf *next)
 {
-	/// dprintk("buffer_activate buf=%p\n",buf);
 	buf->vb.state = VIDEOBUF_ACTIVE;
 	buf->top_seen = 0;
 
@@ -515,14 +478,8 @@ static int buffer_activate(struct TW68_dev *dev,	///unsigned int nId,
 
 static void free_buffer(struct videobuf_queue *q, struct TW68_buf *buf)
 {
-	// struct TW68_fh  *fh = q->priv_data;
-	// struct TW68_dev *dev  = fh->dev;
-
-	printk("%s, state: %i\n", __func__, buf->vb.state);
-
 	videobuf_vmalloc_free(&buf->vb);
 	buf->vb.state = VIDEOBUF_NEEDS_INIT;
-	// printk( "tw68v  free_buffer:  %p   vb%p freed\n", buf, buf->vb );
 }
 
 static int buffer_prepare(struct videobuf_queue *q,
@@ -540,25 +497,16 @@ static int buffer_prepare(struct videobuf_queue *q,
 	if (DMA_nCH == 0XF)
 		///DMA_nCH =0;
 		nId = 0;
-	///  printk("  >>>>buffer_prepare DMA_nCH%x  %p  vb->baddr:%p,  vb->bsize:%d   \n",  DMA_nCH, vb, vb->baddr, vb->bsize );
+
 	/* sanity checks */
 	if (NULL == fh->fmt)
 		return -EINVAL;
-	////////////////////////////////////////////////////
-	/*
-	   if (fh->width    < 48 ||
-	   fh->height   < 32 ||
-	   fh->width/4  > dev->crop_current.width  ||
-	   fh->height/4 > dev->crop_current.height ||
-	   fh->width    > dev->crop_bounds.width  ||
-	   fh->height   > dev->crop_bounds.height)
-	   return -EINVAL;
-	 */
+
 	size = (fh->width * fh->height * fh->fmt->depth) >> 3;
 	if (0 != buf->vb.baddr && buf->vb.bsize < size)
 		return -EINVAL;
 	////  cause PAL stop
-///////////////////////////////////////////////////////////////////////////////
+
 	if (VIDEOBUF_NEEDS_INIT == buf->vb.state) {
 
 		buf->vb.width = fh->width;
@@ -570,8 +518,6 @@ static int buffer_prepare(struct videobuf_queue *q,
 		nId = DMA_nCH + 1;
 
 		dev->video_dmaq[nId].curr = NULL;
-
-		/// printk("buffer_prepare INIT  vb->baddr:%x,  vb->bsize:%d   \n", vb->baddr, vb->bsize );
 
 		/*
 		   If I understand correctly, the videobuf_iolock function is responsible for
@@ -599,7 +545,6 @@ static int buffer_prepare(struct videobuf_queue *q,
 		if (err < 0)
 			goto oops;
 
-		///printk("  ffff>>>>buffer_prepare   dev->m_Page0 %p  dev->m_Page0.cpu %x %x %x    ptr:0x%x  %x %x | %x %x \n", dev->m_Page0, ptr, *ptr, *(ptr+1), *(ptr+2), *(ptr+3) );
 	}
 
 	buf->vb.state = VIDEOBUF_PREPARED;
@@ -625,7 +570,7 @@ int buffer_setup(struct videobuf_queue *q, unsigned int *count,
 
 	struct TW68_dev *dev;
 	struct TW68_fh *fh = q->priv_data;
-	//struct TW68_buf *buf = container_of(vb,struct TW68_buf,vb);
+
 	dev = fh->dev;
 
 	ChannelOffset = (PAGE_SIZE << 1) / 8 / 8;
@@ -637,10 +582,6 @@ int buffer_setup(struct videobuf_queue *q, unsigned int *count,
 
 	dwReg2 = reg_readl(DMA_CH0_CONFIG + 2);
 	dwReg = reg_readl(DMA_CH0_CONFIG + nId);
-
-	printk
-	    (" ******** buffer_setup ####  CH%d::   dwReg2: 0x%X   deReg 0x%X  \n",
-	     nId, dwReg2, dwReg);
 
 	if (nId == 0XF) {
 		buffer_setup_QF(q, count, size);
@@ -654,8 +595,6 @@ int buffer_setup(struct videobuf_queue *q, unsigned int *count,
 		reg_writel(DECODER0_SDT + (nId * 0x10), 7);	/// 0 NTSC
 	}
 
-////////////////////////////// decoder resize //////////////////////////////////////////
-
 	DecoderResize(dev, nId, fh->height / 2, fh->width);
 
 	/// Fixed_SG_Mapping(dev, nId, *size);  //   nDMA_channel
@@ -665,20 +604,11 @@ int buffer_setup(struct videobuf_queue *q, unsigned int *count,
 	dwReg2 = reg_readl(DMA_CH0_CONFIG + 2);
 	dwReg = reg_readl(DMA_CH0_CONFIG + nId);
 
-	printk
-	    (" ********#### FM CH%d::   dwReg2: 0x%X   deReg 0x%X  H:%d W:%d\n",
-	     nId, dwReg2, dwReg, fh->height / 2, (*size / fh->height));
-
 	if (0 == *count)
 		*count = gbuffers;
 
-	/// pgn = (*size + PAGE_SIZE -1) /PAGE_SIZE;
-
 	pgn = TW68_buffer_pages(*size / 2) - 1;	// page number for 1 field
 
-	//pgn = (pages+1) /2;
-
-	/// *count = TW68_buffer_count(*size,*count);
 	while (*size * *count > VideoFrames_limit * 1024 * 1024 * 2)
 		(*count)--;
 
@@ -694,11 +624,6 @@ int buffer_setup(struct videobuf_queue *q, unsigned int *count,
 	m_nCurVideoChannelNum = 0;	// real-time video channel  starts 0
 	m_nVideoFormat = dev->nVideoFormat[nId];
 
-	printk
-	    (" #### buffer_setup:: W:%d H:%d  frame size: %d,  gbuffers: %d, ChannelOffset: %d  field pgn: %d  m_StartIdx %d  m_EndIdx %d \n",
-	     fh->width, fh->height, *size, *count, ChannelOffset, pgn,
-	     m_StartIdx, m_EndIdx);
-
 	m_dwCHConfig = (m_StartIdx & 0x3FF) |	// 10 bits
 	    ((m_EndIdx & 0x3FF) << 10) |	// 10 bits
 	    ((m_nVideoFormat & 7) << 20) | ((m_bHorizontalDecimate & 1) << 23) | ((m_bVerticalDecimate & 1) << 24) | ((m_nDropChannelNum & 3) << 25) | ((m_bDropMasterOrSlave & 1) << 27) |	// 1 bit
@@ -708,11 +633,8 @@ int buffer_setup(struct videobuf_queue *q, unsigned int *count,
 
 	reg_writel(DMA_CH0_CONFIG + nId, m_dwCHConfig);
 	dwReg = reg_readl(DMA_CH0_CONFIG + nId);
-	printk
-	    (" ********#### buffer_setup CH%d::  m_StartIdx 0X%x  pgn%d  m_dwCHConfig: 0x%X   dwReg: 0x%X    \n",
-	     nId, m_StartIdx, pgn, m_dwCHConfig, dwReg);
 
-//////external video decoder settings//////////////////////////////////////////////////////////////////////////
+	//////external video decoder settings//////
 
 	dwRegW = fh->width;
 	dwRegH = fh->height / 2;	// frame height
@@ -722,10 +644,6 @@ int buffer_setup(struct videobuf_queue *q, unsigned int *count,
 
 	//Video Size
 	reg_writel(VIDEO_SIZE_REG, dwReg);	//for Rev.A backward compatible
-	///  xxx dwReg = reg_readl(VIDEO_SIZE_REG);
-
-	printk(" #### buffer_setup:: VIDEO_SIZE_REG: 0x%X,   0x%X \n",
-	       VIDEO_SIZE_REG, dwReg);
 
 	reg_writel(VIDEO_SIZE_REG0 + nId, dwReg);	//for Rev.B or later only
 
@@ -738,10 +656,6 @@ int buffer_setup(struct videobuf_queue *q, unsigned int *count,
 
 /// 0915  rev B  black ....
 	nScaler = VSCALE1_LO;	/// + (nId<<4); //VSCALE1_LO + 0|0x10|0x20|0x30
-
-	dwReg = dwRegH & 0xFF;	//V
-
-	/// reg_writel(nScaler,  dwReg);
 
 	nScaler++;		//VH
 
@@ -762,10 +676,6 @@ int buffer_setup(struct videobuf_queue *q, unsigned int *count,
 
 	dwReg2 = reg_readl(DMA_CH0_CONFIG + 2);
 	dwReg = reg_readl(DMA_CH0_CONFIG + nId);
-
-	printk
-	    (" ********#### buffer_setup CH%d::   dwReg2: 0x%X   deReg 0x%X  \n",
-	     nId, dwReg2, dwReg);
 
 	return 0;
 }
@@ -788,8 +698,6 @@ static void buffer_queue(struct videobuf_queue *q, struct videobuf_buffer *vb)
 static void buffer_release(struct videobuf_queue *q, struct videobuf_buffer *vb)
 {
 	struct TW68_buf *buf = container_of(vb, struct TW68_buf, vb);
-
-	printk("$$$$$$   buffer_release  ioctl  called \n");
 	free_buffer(q, buf);
 
 }
@@ -878,14 +786,6 @@ int TW68_g_ctrl_internal(struct TW68_dev *dev, struct TW68_fh *fh,
 	case V4L2_CID_AUDIO_VOLUME:
 		c->value = dev->video_param[nId].ctl_volume;
 		break;
-		/*
-		   case V4L2_CID_PRIVATE_INVERT:
-		   c->value = dev->video_param[k].ctl_invert;
-		   break;
-		   case V4L2_CID_HFLIP:
-		   c->value = dev->ctl_mirror;
-		   break;
-		 */
 	case V4L2_CID_PRIVATE_Y_EVEN:
 		c->value = dev->video_param[nId].ctl_y_even;
 		break;
@@ -898,13 +798,7 @@ int TW68_g_ctrl_internal(struct TW68_dev *dev, struct TW68_fh *fh,
 	default:
 		return -EINVAL;
 	}
-	printk
-	    ("  nId%d  TW68_g_ctrl_internal  Get_control name=%s val=%d  regval 0x%X \n",
-	     nId, ctrl->name, c->value, regval);
-	return 0;
 }
-
-///EXPORT_SYMBOL_GPL(TW68_g_ctrl_internal);
 
 static int TW68_g_ctrl(struct file *file, void *priv, struct v4l2_control *c)
 {
@@ -926,9 +820,6 @@ int TW68_s_ctrl_internal(struct TW68_dev *dev, struct TW68_fh *fh,
 	ctrl = ctrl_by_id(c->id);
 	if (NULL == ctrl)
 		goto error;
-
-	printk("    TW68_s_ctrl_internal  set_control name=%s val=%d\n",
-	       ctrl->name, c->value);
 
 	switch (ctrl->type) {
 	case V4L2_CTRL_TYPE_BOOLEAN:
@@ -1048,9 +939,6 @@ int TW68_s_ctrl_internal(struct TW68_dev *dev, struct TW68_fh *fh,
 		goto error;
 	}
 	err = 0;
-	printk
-	    ("    TW68_s_ctrl_internal  set_control name=%s REAL val=%d   reg  0x%X\n",
-	     ctrl->name, c->value, regval);
 
 error:
 	return err;
@@ -1072,11 +960,9 @@ static struct videobuf_queue *TW68_queue(struct TW68_fh *fh)
 	switch (fh->type) {
 	case V4L2_BUF_TYPE_VIDEO_CAPTURE:
 		q = &fh->cap;
-		// printk(KERN_INFO " videobuf_queue: V4L2_BUF_TYPE_VIDEO_CAPTURE 0x%X\n", q);
 		break;
 	case V4L2_BUF_TYPE_VBI_CAPTURE:
 		q = &fh->vbi;
-		// printk(KERN_INFO " videobuf_queue: V4L2_BUF_TYPE_VBI_CAPTURE .\n");
 		break;
 	default:
 		printk(KERN_INFO
@@ -1110,35 +996,21 @@ static int video_open(struct file *file)
 	unsigned int request = 0;
 	unsigned int dmaCH;
 
-	int k;			//, used;
+	int k;
 
-	// return -ENODEV;
 
 	mutex_lock(&TW686v_devlist_lock);
 
 	list_for_each_entry(dev, &TW686v_devlist, devlist) {
-		printk(KERN_INFO
-		       " @@@@@ video_open   minor=%d  type=%s  openned:%X \n",
-		       minor, v4l2_type_names[type], dev->video_opened);
-
-		///if (dev->video_dev && (dev->video_dev->minor == minor))v->video_open
-		///     if (dev->video_device[0] && (dev->video_device[0]->minor == minor))
 
 		for (k = 0; k < 9; k++)	// 8 - 9
 		{
-			// printk(KERN_INFO "video_open search  dev->video_device[k]:%X,  dev->video_device[k]->minor:%d  \n", 
-			//               dev->video_device[k],  dev->video_device[k]->minor );
 
 			if (dev->video_device[k]
 			    && (dev->video_device[k]->minor == minor))
 				goto found;
 		}
 	}
-
-	//if (dev->vbi_dev && (dev->vbi_dev->minor == minor)) {
-	//      type = V4L2_BUF_TYPE_VBI_CAPTURE;
-	//      goto found;
-	//}
 
 	printk(KERN_INFO "video_open  no real device found XXXX \n");
 
@@ -1156,9 +1028,6 @@ found:
 	dmaCH = 0xF;
 	if (k > 0)
 		dmaCH = k - 1;
-
-	printk(KERN_INFO "video_open ID:%d  dmaCH %x   request %X \n", k, dmaCH,
-	       request);
 
 	if (dev->video_opened & request) {
 		mutex_unlock(&TW686v_devlist_lock);
@@ -1179,8 +1048,6 @@ found:
 	if (NULL == fh)
 		return -ENOMEM;
 
-	printk(KERN_INFO "fh kzalloc  successful! \n");
-
 	if (VideoDecoderDetect(dev, dmaCH) == 50) {
 		dev->tvnormf[k] = &tvnorms[0];
 		dev->PAL50[k] = 1;
@@ -1194,38 +1061,22 @@ found:
 
 	}
 
-	printk("\n&&&&&&&&&&&&&&&  0X%p  open /dev/video%d  minor%d type=%s  video_opened=0x%X  k:%d   tvnorm::%s  %d\n", dev, dev->video_device[k]->num, minor,	//  0901 array
-	       v4l2_type_names[V4L2_BUF_TYPE_VIDEO_CAPTURE], dev->video_opened,
-	       k, dev->tvnormf[k]->name, dev->PAL50[k]);
-
 	file->private_data = fh;
 	fh->dev = dev;
 	fh->DMA_nCH = dev->video_dmaq[k].DMA_nCH;	///  k;    /// DMA index   +1
 	fh->type = type;
-	/// fh->fmt      = format_by_fourcc(V4L2_PIX_FMT_UYVY);   /// RGB24
 	fh->fmt = format_by_fourcc(V4L2_PIX_FMT_YUYV);	/// YUY2 by default
 	fh->width = fh->dW;	//704;  //720;
 	fh->height = fh->dH;	//576;
 
-	printk(KERN_INFO "open minor=%d  fh->DMA_nCH= 0x%X type=%s\n", minor,
-	       fh->DMA_nCH, v4l2_type_names[type]);
-	/// printk(KERN_INFO "fh initialized to PAL frame buffer  successful! \n");
-
 	v4l2_prio_open(&dev->prio, &fh->prio);
-	printk(KERN_INFO "v4l2_prio_open ()  successful! \n");
 
-//6.1 add mutex *
 	videobuf_queue_vmalloc_init(&fh->cap, &video_qops,
 				    NULL, &dev->slock,
 				    V4L2_BUF_TYPE_VIDEO_CAPTURE,
 				    V4L2_FIELD_INTERLACED,
 				    sizeof(struct TW68_buf), fh
-				    //);   //6.0
 				    , NULL);
-// 6.1
-
-	printk(KERN_INFO "videobuf_queue_sg_init ()  successful! \n");
-	/// video_mux(dev,dev->ctl_input);
 
 	return 0;
 }
@@ -1262,17 +1113,13 @@ video_poll(struct file *file, struct poll_table_struct *wait)
 	struct videobuf_buffer *buf = NULL;
 	unsigned int rc = 0;
 
-	// printk( "TW68 %s\n", __func__);
 	if (V4L2_BUF_TYPE_VIDEO_CAPTURE != fh->type)
 		return POLLERR;
-
-	///return videobuf_poll_stream(file, q, wait);
 
 	if (V4L2_BUF_TYPE_VBI_CAPTURE == fh->type)
 		return videobuf_poll_stream(file, &fh->vbi, wait);
 
 	if (res_check(fh, RESOURCE_VIDEO)) {
-		//mutex_lock(&fh->cap.vb_lock);
 		if (!list_empty(&fh->cap.stream))
 			buf =
 			    list_entry(fh->cap.stream.next,
@@ -1316,9 +1163,7 @@ static int video_release(struct file *file)
 	struct TW68_dev *dev = fh->dev;
 	int DMA_nCH = fh->DMA_nCH;
 	int nId = DMA_nCH + 1;
-	printk(KERN_INFO "video_release ()  CALLED  minor:%d  DMA_nCH: %X    video_fieldcount 0x%X ! \n", minor, DMA_nCH, dev->video_fieldcount[DMA_nCH]);	/// 0-8  
 
-	/// printk(KERN_INFO " turn off overlay  CALLED   ! \n");
 	if (DMA_nCH == 0x0F) {
 		dev->video_opened &= ~(DMA_nCH);
 		dev->video_dmaq[0].DMA_nCH = 0;
@@ -1341,39 +1186,25 @@ static int video_release(struct file *file)
 
 	}
 
-	printk(KERN_INFO
-	       " video_release  CALLED   !  dev->video_opened: 0x%x \n",
-	       dev->video_opened);
+
 
 	videobuf_streamoff(&fh->cap);
-
-	// printk(KERN_INFO " stop video capture  CALLED   ! \n");
 
 	if (fh->cap.read_buf) {
 		buffer_release(&fh->cap, fh->cap.read_buf);
 		kfree(fh->cap.read_buf);
 	}
 
-	printk(KERN_INFO " kfree(fh->cap.read_buf);  CALLED   ! \n");
-
-	printk(KERN_INFO " videobuf_mmap_free  CALLED   ! \n");
-
-	/// v4l2_prio_close(&dev->prio,  (enum v4l2_priority *)(&fh->prio));
-	printk(KERN_INFO " v4l2_prio_close  CALLED   HZ:%d  ! \n", HZ);
-
 	file->private_data = NULL;
 
 	kfree(fh);
 
-	printk(KERN_INFO " video_release   kfree(fh);  CALLED   ! \n");
 	return 0;
 }
 
 static int video_mmap(struct file *file, struct vm_area_struct *vma)
 {
 	struct TW68_fh *fh = file->private_data;
-
-	//printk("video_mmap :: vma= %p  %p    %d \n", vma->vm_start, vma->vm_end, (vma->vm_end - vma->vm_start) );
 	return videobuf_mmap_mapper(TW68_queue(fh), vma);
 }
 
@@ -1403,19 +1234,12 @@ static int TW68_g_fmt_vid_cap(struct file *file, void *priv,
 			      struct v4l2_format *f)
 {
 	struct TW68_fh *fh = priv;
-
-	// printk( " _g_fmt_vid_cap: TW68_fh %x || v4l2_format %x  fmt %x\n", priv, f, f->fmt);
-
 	f->fmt.pix.width = fh->width;
 	f->fmt.pix.height = fh->height;
 	f->fmt.pix.field = fh->cap.field;
 	f->fmt.pix.pixelformat = fh->fmt->fourcc;
 	f->fmt.pix.bytesperline = (f->fmt.pix.width * fh->fmt->depth) >> 3;
 	f->fmt.pix.sizeimage = f->fmt.pix.height * f->fmt.pix.bytesperline;
-
-	printk(" _g_fmt_vid_cap: width %d  height %d \n", f->fmt.pix.width,
-	       f->fmt.pix.height);
-
 	return 0;
 }
 
@@ -1433,9 +1257,6 @@ static int TW68_g_fmt_vid_overlay(struct file *file, void *priv,
 	f->fmt.pix.pixelformat = fh->fmt->fourcc;
 	f->fmt.pix.bytesperline = (f->fmt.pix.width * fh->fmt->depth) >> 3;
 	f->fmt.pix.sizeimage = f->fmt.pix.height * f->fmt.pix.bytesperline;
-
-	printk(" overlay _g_fmt_vid_cap: width %d  height %d \n",
-	       f->fmt.pix.width, f->fmt.pix.height);
 	return 0;
 }
 
@@ -1451,9 +1272,6 @@ static int TW68_try_fmt_vid_cap(struct file *file, void *priv,
 	u32 nId = fh->DMA_nCH;
 
 	fmt = format_by_fourcc(f->fmt.pix.pixelformat);
-	printk("TW68 input  nId:%x   try_fmt:: %x  | width %d  height %d\n",
-	       nId, f->fmt.pix.pixelformat, f->fmt.pix.width,
-	       f->fmt.pix.height);
 
 	if (NULL == fmt) {
 		printk("TW68 fmt:: no valid pixel format \n");
@@ -1464,7 +1282,7 @@ static int TW68_try_fmt_vid_cap(struct file *file, void *priv,
 	if ((V4L2_PIX_FMT_YUYV) != fmt->fourcc) {
 		if ((V4L2_PIX_FMT_UYVY) != fmt->fourcc)	/// Only allow UYVY  0727))
 		{
-			printk("TW68 fmt:: not YUV422 !!!!!!!!!!!!!!!!!!! \n");
+			printk("TW68 fmt:: not YUV422! \n");
 
 			return -EINVAL;
 		} else {
@@ -1503,11 +1321,6 @@ static int TW68_try_fmt_vid_cap(struct file *file, void *priv,
 		maxh = 576;
 	}
 
-	printk
-	    ("TW68 _try_fmt_vid_cap  tvnormf %d ->name %s  id %X   maxh %d \n",
-	     nId, dev->tvnormf[nId]->name, (unsigned int)dev->tvnormf[nId]->id,
-	     maxh);
-
 	field = f->fmt.pix.field;
 
 	if (V4L2_FIELD_ANY == field) {
@@ -1528,19 +1341,11 @@ static int TW68_try_fmt_vid_cap(struct file *file, void *priv,
 
 	f->fmt.pix.field = field;
 
-	///printk( "TW68 field: %d _fmt: width %d  height %d \n", field, f->fmt.pix.width, f->fmt.pix.height);
-	printk
-	    ("TW68 _try_fmt_vid_cap fmt::pixelformat %x  field: %d _fmt: width %d  height %d \n",
-	     fmt->fourcc, field, f->fmt.pix.width, f->fmt.pix.height);
-
 	v4l_bound_align_image(&f->fmt.pix.width, 128, maxw, 2,	// 4 pixel  test 360  4,
 			      &f->fmt.pix.height, 60, maxh, 0, 0);
 
 	f->fmt.pix.bytesperline = (f->fmt.pix.width * fmt->depth) >> 3;
 	f->fmt.pix.sizeimage = f->fmt.pix.height * f->fmt.pix.bytesperline;
-
-	printk("TW68 _try_fmt_vid_cap: width %d  height %d      %d  %d \n",
-	       f->fmt.pix.width, f->fmt.pix.height, maxw, maxh);
 
 	return 0;
 }
@@ -1558,10 +1363,6 @@ static int TW68_s_fmt_vid_cap(struct file *file, void *priv,
 	struct TW68_fh *fh = priv;
 	int err;
 
-	printk(KERN_ERR
-	       "~~~~~~~~~~~~~TW68_s_fmt_vid_cap: %x  W:%d H:%d  field:%X\n",
-	       f->fmt.pix.pixelformat, fh->width, fh->height, fh->cap.field);
-
 	err = TW68_try_fmt_vid_cap(file, priv, f);
 	if (0 != err)
 		return err;
@@ -1570,10 +1371,6 @@ static int TW68_s_fmt_vid_cap(struct file *file, void *priv,
 	fh->width = f->fmt.pix.width;
 	fh->height = f->fmt.pix.height;
 	fh->cap.field = f->fmt.pix.field;
-
-	printk(KERN_ERR
-	       "~~~~~~~~~~~~~TW68_s_fmt_vid_cap: fh->fmt   W:%d H:%d  field:%X\n",
-	       fh->width, fh->height, fh->cap.field);
 
 	return 0;
 }
@@ -1607,7 +1404,6 @@ static int TW68_enum_input(struct file *file, void *priv, struct v4l2_input *i)
 	unsigned int n;
 
 	n = i->index;
-	printk(KERN_INFO " TW68_enum_input   i=%p  n:%x CALLED   ! \n", i, n);
 
 	if (n >= 4)
 		return -EINVAL;
@@ -1617,11 +1413,6 @@ static int TW68_enum_input(struct file *file, void *priv, struct v4l2_input *i)
 	i->index = n;
 	i->type = V4L2_INPUT_TYPE_CAMERA;
 	strcpy(i->name, card_in(dev, n).name);
-	/*
-	   if (card_in(dev, n).tv)
-	   i->type = V4L2_INPUT_TYPE_TUNER;
-	   i->audioset = 1;
-	 */
 	if (n == dev->ctl_input) {
 	}
 	i->std = TW68_NORMS;
@@ -1629,18 +1420,6 @@ static int TW68_enum_input(struct file *file, void *priv, struct v4l2_input *i)
 	i->type = V4L2_INPUT_TYPE_CAMERA;
 	sprintf(i->name, "Composite%d", n);
 
-	/*
-	   ///if(n == dev->input) {
-	   if (n == dev->ctl_input) {
-	   vstatus = dev->vstatus;
-	   if (0 != (vstatus & BIT(7)))
-	   i->status |= V4L2_IN_ST_NO_SIGNAL;
-	   if (0 == (vstatus & BIT(6)))
-	   i->status |= V4L2_IN_ST_NO_H_LOCK;
-	   if (0 != (vstatus & BIT(1)))
-	   i->status |= V4L2_IN_ST_NO_COLOR;
-	   }
-	 */
 	return 0;
 }
 
@@ -1657,21 +1436,13 @@ static int TW68_s_input(struct file *file, void *priv, unsigned int i)
 {
 	struct TW68_fh *fh = priv;
 	struct TW68_dev *dev = fh->dev;
-	// int err;
-
-	printk(KERN_INFO " TW68_s_input   i=%d  CALLED   ! \n", i);
 
 	if (i < 0 || i >= TW68_INPUT_MAX)
 		return -EINVAL;
 	if (NULL == card_in(dev, i).name)
 		return -EINVAL;
 
-	printk(KERN_INFO " TW68_s_input card in name: %s  i=%d  CALLED   ! \n",
-	       card_in(dev, i).name, i);
-	// printk(KERN_INFO " TW68_s_input card in name: %s  i=%d  CALLED   ! \n", card_in(dev, i).name, i);
-
-	/// printk(KERN_INFO " TW68_s_input card in name%  i=%d  CALLED   ! \n", i);
-	return 0;		/////  ffmpeg input;
+	return 0;
 }
 
 static int TW68_querycap(struct file *file, void *priv,
@@ -1679,10 +1450,6 @@ static int TW68_querycap(struct file *file, void *priv,
 {
 	struct TW68_fh *fh = priv;
 	struct TW68_dev *dev = fh->dev;
-
-	// unsigned int tuner_type = dev->tuner_type;
-
-	printk(KERN_INFO " TW68__querycap   QP  CALLED   ! \n");
 
 	strcpy(cap->driver, "TW--6868");
 	strlcpy(cap->card, TW68_boards[dev->board].name, sizeof(cap->card));
@@ -1693,7 +1460,6 @@ static int TW68_querycap(struct file *file, void *priv,
 	    V4L2_CAP_VBI_CAPTURE |
 	    V4L2_CAP_READWRITE | V4L2_CAP_STREAMING | V4L2_CAP_TUNER;
 
-	printk(KERN_INFO " TW68_s__querycap   GO   ! \n");
 	return 0;
 }
 
@@ -1734,9 +1500,6 @@ int TW68_s_std_internal(struct TW68_dev *dev, struct TW68_fh *fh,
 
 	id = tvnorms[i].id;
 
-	printk(KERN_INFO " TW68__s_std_internal: *id = %x  i= %x \n", (int)id,
-	       i);
-
 	nId = fh->DMA_nCH;
 
 	if (nId == 0XF)
@@ -1759,8 +1522,6 @@ static int TW68_s_std(struct file *file, void *priv, v4l2_std_id id)
 	if (nId == 0XF)
 		nId = 0;
 
-	printk("%s, _s_std v4l2_std_id =%d \n", __func__, (int)id);
-
 	return TW68_s_std_internal(fh->dev, fh, id);
 }
 
@@ -1777,8 +1538,6 @@ static int TW68_g_std(struct file *file, void *priv, v4l2_std_id * id)
 
 	*id = dev->tvnormf[nId]->id;
 
-	printk("%s, _g_std v4l2_std_id =%d \n", __func__, (int)*id);
-
 	return 0;
 }
 
@@ -1786,8 +1545,6 @@ static int TW68_cropcap(struct file *file, void *priv, struct v4l2_cropcap *cap)
 {
 	struct TW68_fh *fh = priv;
 	struct TW68_dev *dev = fh->dev;
-
-	/// 0824 TVtime  //printk(KERN_INFO " ============ TW68_cropcap  CALLED   ! \n");
 
 	if (cap->type != V4L2_BUF_TYPE_VIDEO_CAPTURE &&
 	    cap->type != V4L2_BUF_TYPE_VIDEO_OVERLAY)
@@ -1798,7 +1555,6 @@ static int TW68_cropcap(struct file *file, void *priv, struct v4l2_cropcap *cap)
 	cap->pixelaspect.numerator = 1;
 	cap->pixelaspect.denominator = 1;
 
-	///printk(" TW68_cropcap dev->tvnorm->id:0x%X\n\n", dev->tvnorm->id);
 	if (dev->tvnorm->id & V4L2_STD_525_60) {
 		cap->pixelaspect.numerator = 11;
 		cap->pixelaspect.denominator = 10;
@@ -1807,7 +1563,7 @@ static int TW68_cropcap(struct file *file, void *priv, struct v4l2_cropcap *cap)
 		cap->pixelaspect.numerator = 54;
 		cap->pixelaspect.denominator = 59;
 	}
-	///printk(KERN_INFO " TW68__cropcap   successful   ! \n");
+	
 	return 0;
 }
 
@@ -1815,8 +1571,6 @@ static int TW68_g_crop(struct file *file, void *f, struct v4l2_crop *crop)
 {
 	struct TW68_fh *fh = f;
 	struct TW68_dev *dev = fh->dev;
-
-	printk("========TW68__g_crop \n");
 
 	if (crop->type != V4L2_BUF_TYPE_VIDEO_CAPTURE &&
 	    crop->type != V4L2_BUF_TYPE_VIDEO_OVERLAY)
@@ -1832,8 +1586,6 @@ static int TW68_s_crop(struct file *file, void *f,
 	struct TW68_dev *dev = fh->dev;
 	struct v4l2_rect *b = &dev->crop_bounds;
 	struct v4l2_crop crop = *crop_p;
-
-	printk("========TW68__s_crop \n");
 
 	if (crop.type != V4L2_BUF_TYPE_VIDEO_CAPTURE &&
 	    crop.type != V4L2_BUF_TYPE_VIDEO_OVERLAY)
@@ -1903,8 +1655,6 @@ static int TW68_s_frequency(struct file *file, void *priv,
 	mutex_lock(&dev->lock);
 	dev->ctl_freq = f->frequency;
 
-	///reg_call_all(dev, tuner, s_frequency, f);
-
 	mutex_unlock(&dev->lock);
 	return 0;
 }
@@ -1946,9 +1696,6 @@ static int TW68_enum_fmt_vid_cap(struct file *file, void *priv,
 
 	f->pixelformat = formats[f->index].fourcc;
 
-	printk("========TW68__enum_fmt_vid_cap  description %s \n",
-	       f->description);
-
 	return 0;
 }
 
@@ -1964,8 +1711,6 @@ static int TW68_g_fbuf(struct file *file, void *f, struct v4l2_framebuffer *fb)
 	struct TW68_fh *fh = f;
 	struct TW68_dev *dev = fh->dev;
 
-	printk(" ====== TW68__g_fbuf \n");
-
 	*fb = dev->ovbuf;
 	fb->capability = V4L2_FBUF_CAP_LIST_CLIPPING;
 
@@ -1978,8 +1723,6 @@ static int TW68_s_fbuf(struct file *file, void *f,
 	struct TW68_fh *fh = f;
 	struct TW68_dev *dev = fh->dev;
 	struct TW68_format *fmt;
-
-	printk(" ====== TW68__s_fbuf \n");
 
 	if (!capable(CAP_SYS_ADMIN) && !capable(CAP_SYS_RAWIO))
 		return -EPERM;
@@ -2043,8 +1786,6 @@ static int TW68_qbuf(struct file *file, void *priv, struct v4l2_buffer *b)
 	struct videobuf_queue *q = NULL;
 	q = TW68_queue(fh);
 
-	// printk(KERN_INFO " ++TW68__qbuf videobuf_queue: 0X%p   v4l2_buffer: 0X%p.\n", q, b);
-
 	return videobuf_qbuf(q, b);
 }
 
@@ -2054,9 +1795,6 @@ static int TW68_dqbuf(struct file *file, void *priv, struct v4l2_buffer *b)
 
 	struct videobuf_queue *q = NULL;
 	q = &fh->cap;
-
-	// printk(KERN_INFO " --TW68__dqbuf videobuf_queue: 0X%p  0X%p  v4l2_buffer: 0X%p.\n", q, TW68_queue(fh), b);
-	//  TW68_queue(fh)
 
 	return videobuf_dqbuf(q, b, file->f_flags & O_NONBLOCK);
 }
@@ -2073,29 +1811,15 @@ static int TW68_streamon(struct file *file, void *priv, enum v4l2_buf_type type)
 	if (!res_get(dev, fh, res)) {
 		return -EBUSY;
 	}
-	// fh->resources |= res;
 
 	nId = fh->DMA_nCH;
 	if (nId == 0XF)
 		nId = 0;
-	else;
-	//nId --;
 
 	q = TW68_queue(fh);
 
-	//TW68_buffer_requeue(dev, &dev->video_dmaq[nId]);
 
 	streaming = videobuf_streamon(q);
-	printk(KERN_INFO
-	       "%s: videobuf_streamon(TW68_queue(fh)) DMA %d  q->streaming:%X  streaming:%x.\n",
-	       dev->name, fh->DMA_nCH, q->streaming, streaming);
-
-	///////////////////////////////////////////
-
-	//dwReg2 =  reg_readl(DMA_CH0_CONFIG+ 2);
-	//dwReg =  reg_readl(DMA_CH0_CONFIG+ nId);
-
-	//printk(" ********####  streamon CH%d::   dwReg2: 0x%X   deReg 0x%X  \n", nId, dwReg2, dwReg );
 
 // read dma config  
 	if (fh->DMA_nCH == 0XF) {
@@ -2141,16 +1865,11 @@ static int TW68_streamoff(struct file *file, void *priv,
 		del_timer(&dev->video_dmaq[nId].timeout);
 	}
 
-	printk(KERN_INFO
-	       "%s:  DMA_nCH:%x   videobuf_streamoff delete video timeout    \n",
-	       dev->name, fh->DMA_nCH);
+
 	stop_video_DMA(dev, fh->DMA_nCH);
 
 	err = videobuf_streamoff(q);
 	res_free(fh, res);
-	printk(KERN_INFO
-	       "%s:%d videobuf_streamoff q->streaming:%x  return err:%x \n",
-	       dev->name, fh->DMA_nCH, q->streaming, err);
 
 	return 0;
 }
@@ -2252,7 +1971,6 @@ int TW68_video_init1(struct TW68_dev *dev)
 			cpu = pci_alloc_consistent(dev->pci, 800 * 600 * 2, &dma_addr);	// 8* 4096 contiguous  //*2
 			dev->BDbuf[n][m].cpu = cpu;
 			dev->BDbuf[n][m].dma_addr = dma_addr;
-			//printk("$$$$$$$$$$$$$$$$ TW68_  _video_init1 n:%dm:%d  cpu:%x    dma:%x   \n", n, m, cpu, dma_addr);
 			// assume aways successful   480k each field   total 32  <16MB
 		}
 
@@ -2316,15 +2034,6 @@ int TW68_video_init1(struct TW68_dev *dev)
 			    reg_readl(CH1_SAT_V_REG + (k - 4) * 0x10 +
 				      0x100) / 2;
 		}
-
-		printk
-		    ("TW68_  _video_init1   get decoder %d default AMP: BRIGHTNESS %d  CONTRAST %d  HUE_ %d  SAT_U_%d SAT_V_%d   \n",
-		     k, dev->video_param[k].ctl_bright,
-		     dev->video_param[k].ctl_contrast,
-		     dev->video_param[k].ctl_hue,
-		     dev->video_param[k].ctl_saturation,
-		     dev->video_param[k].ctl_mute);
-
 	}
 
 	for (k = 8; k > 0; k--) {
@@ -2336,13 +2045,6 @@ int TW68_video_init1(struct TW68_dev *dev)
 		dev->video_param[k].ctl_saturation =
 		    dev->video_param[k - 1].ctl_saturation;
 		dev->video_param[k].ctl_mute = dev->video_param[k - 1].ctl_mute;
-		printk
-		    ("TW68_  _video_init1   get decoder %d default AMP: BRIGHTNESS %d  CONTRAST %d  HUE_ %d  SAT_U_%d SAT_V_%d   \n",
-		     k, dev->video_param[k].ctl_bright,
-		     dev->video_param[k].ctl_contrast,
-		     dev->video_param[k].ctl_hue,
-		     dev->video_param[k].ctl_saturation,
-		     dev->video_param[k].ctl_mute);
 	}
 
 	// Normalize the reg value to standard value range
@@ -2357,14 +2059,6 @@ int TW68_video_init1(struct TW68_dev *dev)
 		    dev->video_param[k].ctl_saturation & 0xFF;
 		dev->video_param[k].ctl_mute =
 		    dev->video_param[k].ctl_mute & 0xFF;
-		printk
-		    ("TW68_  _video_init1   remap decoder %d default AMP: BRIGHTNESS %d  CONTRAST %d  HUE_ %d  SAT_U_%d SAT_V_%d   \n",
-		     k, dev->video_param[k].ctl_bright,
-		     dev->video_param[k].ctl_contrast,
-		     dev->video_param[k].ctl_hue,
-		     dev->video_param[k].ctl_saturation,
-		     dev->video_param[k].ctl_mute);
-
 	}
 
 	return 0;
@@ -2375,7 +2069,6 @@ int TW68_video_init2(struct TW68_dev *dev)
 	/* init video hw */
 
 	int k;
-	printk("TW68_  _video_init2    set_tvnorm  \n");
 	set_tvnorm(dev, &tvnorms[0]);
 
 	for (k = 0; k < 9; k++)
@@ -2462,9 +2155,6 @@ int buffer_setup_QF(struct videobuf_queue *q, unsigned int *count,
 	for (nId = 0; nId < 4; nId++) {
 		if (nId < 4) {
 			dwReg = reg_readl(DECODER0_SDT + (nId * 0x10));
-			printk
-			    (" ####%%%%%%%%%%   QF buffer_setup::  nId %d,  0X%X    nW%d nH%d nSize%d\n",
-			     nId, dwReg, nW, nH, nSize);
 			reg_writel(DECODER0_SDT + (nId * 0x10), 7);	/// 0 NTSC
 		}
 		
@@ -2491,13 +2181,6 @@ int buffer_setup_QF(struct videobuf_queue *q, unsigned int *count,
 		m_nCurVideoChannelNum = 0;	// real-time video channel  starts 0
 		m_nVideoFormat = dev->nVideoFormat[nId];
 
-		printk(" $$$$$$$ QF  buffer_setup:: N%d   F%d  to %d  \n", nId,
-		       m_nVideoFormat, dev->nVideoFormat[nId]);
-
-		printk
-		    (" #### QF  buffer_setup:: W:%d H:%d  frame size: %d,  gbuffers: %d, ChannelOffset: %d  field pgn: %d  m_StartIdx %d  m_EndIdx %d   m_nVideoFormat %x\n",
-		     fh->width, fh->height, *size, *count, ChannelOffset, pgn,
-		     m_StartIdx, m_EndIdx, m_nVideoFormat);
 
 		m_dwCHConfig = (m_StartIdx & 0x3FF) |	// 10 bits
 		    ((m_EndIdx & 0x3FF) << 10) |	// 10 bits
@@ -2508,9 +2191,6 @@ int buffer_setup_QF(struct videobuf_queue *q, unsigned int *count,
 
 		reg_writel(DMA_CH0_CONFIG + nId, m_dwCHConfig);
 		dwReg = reg_readl(DMA_CH0_CONFIG + nId);
-		printk
-		    (" ********#### buffer_setup CH%d::  m_StartIdx 0X%x  pgn%d  dwReg: 0x%X   m_dwCHConfig 0x%X  \n",
-		     nId, m_StartIdx, pgn, m_dwCHConfig, dwReg);
 
 		//////external video decoder settings//////////////////////////////////////////////////////////////////////////
 
@@ -2522,11 +2202,6 @@ int buffer_setup_QF(struct videobuf_queue *q, unsigned int *count,
 
 		//Video Size
 		reg_writel(VIDEO_SIZE_REG, dwReg);	//for Rev.A backward compatible
-		///  xxx dwReg = reg_readl(VIDEO_SIZE_REG);
-
-		printk(" #### buffer_setup:: VIDEO_SIZE_REG: 0x%X,   0x%X \n",
-		       VIDEO_SIZE_REG, dwReg);
-
 		reg_writel(VIDEO_SIZE_REG0 + nId, dwReg);	//for Rev.B or later only
 
 		//Scaler
