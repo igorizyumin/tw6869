@@ -15,6 +15,7 @@
 #include <linux/notifier.h>
 #include <linux/delay.h>
 #include <linux/mutex.h>
+#include <linux/interrupt.h>
 
 #include <asm/io.h>
 #include <linux/kthread.h>
@@ -614,7 +615,7 @@ u64 GetDelay(struct TW68_dev *dev, int no);
 /* ----------------------------------------------------------- */
 extern struct TW68_board TW68_boards[];
 extern const unsigned int TW68_bcount;
-extern struct pci_device_id __devinitdata TW68_pci_tbl[];
+extern struct pci_device_id TW68_pci_tbl[];
 
 
 
@@ -657,7 +658,7 @@ extern void TW68_audio_irq(struct TW68_dev *dev, u32 dma_status, u32 pb_status);
 int TW68_s_ctrl_internal(struct TW68_dev *dev,  struct TW68_fh *fh, struct v4l2_control *c);
 int TW68_g_ctrl_internal(struct TW68_dev *dev,  struct TW68_fh *fh, struct v4l2_control *c);
 int TW68_queryctrl(struct file *file, void *priv, struct v4l2_queryctrl *c);
-int TW68_s_std_internal(struct TW68_dev *dev,  struct TW68_fh *fh, v4l2_std_id *id);
+int TW68_s_std_internal(struct TW68_dev *dev,  struct TW68_fh *fh, v4l2_std_id id);
 
 int TW68_videoport_init(struct TW68_dev *dev);
 // void TW68_set_tvnorm_hw(struct TW68_dev *dev);

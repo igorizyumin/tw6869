@@ -211,7 +211,7 @@ void tw68v_set_framerate(struct TW68_dev *dev, u32 ch, u32 n)
 	{
 		if(ch >=0 && ch<8)
 			reg_writel( DROP_FIELD_REG0+ ch,  video_framerate[n][0]);   // 30 FPS
-		printk("%%%%    tw68v_set_framerate: ch Id %d   n:%d  %d FPS \n ", ch, n,  video_framerate[n][1]);
+		printk("****    tw68v_set_framerate: ch Id %d   n:%d  %d FPS \n ", ch, n,  video_framerate[n][1]);
 	}
 }
 
@@ -973,7 +973,7 @@ int Field_Copy(struct TW68_dev *dev, int nDMA_channel, int field_PB)
 		pos += pitch*2;
 		srcbuf += pitch;
 		}
-		printk(KERN_INFO " Field_Copy:  Done %%%%%%%%%\n");
+		printk(KERN_INFO " Field_Copy:  Done ******\n");
     }
     else
 	{	
@@ -988,7 +988,7 @@ int BF_Copy(struct TW68_dev *dev, int nDMA_channel, u32 Fn, u32 PB)
 {
 	struct TW68_dmaqueue *q;
 	struct TW68_buf *buf = NULL; //,*next = NULL;
-	int n, Hmax, Wmax, h, pos, pitch;
+	int n, Hmax, Wmax, pos, pitch; // , h
 
 	///struct dma_region			*Field_P;
 	///struct dma_region			*Field_B;
@@ -1051,7 +1051,7 @@ int BF_Copy(struct TW68_dev *dev, int nDMA_channel, u32 Fn, u32 PB)
 		//memcpy(vbuf, srcbuf + Hmax * pitch, Hmax * pitch);	//Test the bottom half frame
 
 #endif
-		printk(KERN_INFO " BField_Copy:  Done %%%%%%%%%\n");
+		printk(KERN_INFO " BField_Copy:  Done *******\n");
     }
     else
 	{	
@@ -1124,7 +1124,7 @@ int  QF_Field_Copy(struct TW68_dev *dev, int nDMA_channel, u32 Fn, u32 PB)
 		srcbuf += stride;
 
 		}
-		printk(KERN_INFO " QField_Copy:  Done %%%%%%%%%\n");
+		printk(KERN_INFO " QField_Copy:  Done *******\n");
        }
       else
 	{	
@@ -1822,7 +1822,7 @@ static irqreturn_t TW68_irq(int irq, void *dev_id)    /// hardware dev id for th
 static int TW68_hwinit1(struct TW68_dev *dev)
 {
 	u32  m_StartIdx, m_EndIdx, m_nVideoFormat, m_dwCHConfig,   dwReg, \
-		 m_bHorizontalDecimate, m_bVerticalDecimate, m_nDropChannelNum,   \
+		 m_bHorizontalDecimate = 0, m_bVerticalDecimate = 0, m_nDropChannelNum,   \
 		 m_bDropMasterOrSlave, m_bDropField, m_bDropOddOrEven, m_nCurVideoChannelNum;
 
 	u32	 regDW, val1, addr, k, ChannelOffset, pgn;
@@ -2245,7 +2245,7 @@ static void TW68_unregister_video(struct TW68_dev *dev)
 }
 
 
-static int __devinit TW68_initdev(struct pci_dev *pci_dev,
+static int TW68_initdev(struct pci_dev *pci_dev,
 				     const struct pci_device_id *pci_id)
 {
 	struct TW68_dev *dev;
@@ -2436,7 +2436,7 @@ err0 = TW68_alsa_create(dev);
 	return err;
 }
 
-static void __devexit TW68_finidev(struct pci_dev *pci_dev)
+static void TW68_finidev(struct pci_dev *pci_dev)
 {
 
 	int m, n, k = 0;
@@ -2516,7 +2516,7 @@ static struct pci_driver TW68_pci_driver = {
 	.name     = "TW6869",
 	.id_table = TW68_pci_tbl,
 	.probe    = TW68_initdev,
-	.remove   = __devexit_p(TW68_finidev),
+	.remove   = TW68_finidev,
 
 //#ifdef CONFIG_PM
 //	.suspend  = TW68_suspend,

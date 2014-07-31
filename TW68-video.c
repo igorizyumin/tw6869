@@ -485,7 +485,7 @@ static void set_tvnorm(struct TW68_dev *dev, struct TW68_tvnorm *norm)
 
 }
 
-
+#if 0
 static void video_mux(struct TW68_dev *dev, int input)
 {
 	dprintk("video input = %d [%s]\n", input, card_in(dev, input).name);
@@ -499,6 +499,7 @@ static void video_mux(struct TW68_dev *dev, int input)
       set_tvnorm(dev, &tvnorms[0]);
 
 }
+#endif
 
 
 
@@ -1817,23 +1818,23 @@ static int TW68_querycap(struct file *file, void  *priv,
 	return 0;
 }
 
-int TW68_s_std_internal(struct TW68_dev *dev, struct TW68_fh *fh, v4l2_std_id *id)
+int TW68_s_std_internal(struct TW68_dev *dev, struct TW68_fh *fh, v4l2_std_id id)
 {
 	unsigned int i, nId;
 	v4l2_std_id fixup;
 
 	for (i = 0; i < TVNORMS; i++)
-		if (*id == tvnorms[i].id)
+		if (id == tvnorms[i].id)
 			break;
 
 	if (i == TVNORMS)
 		for (i = 0; i < TVNORMS; i++)
-			if (*id & tvnorms[i].id)
+			if (id & tvnorms[i].id)
 				break;
 	if (i == TVNORMS)
 		return -EINVAL;
 
-	if ((*id & V4L2_STD_SECAM) && (secam[0] != '-')) {
+	if ((id & V4L2_STD_SECAM) && (secam[0] != '-')) {
 		if (secam[0] == 'L' || secam[0] == 'l') {
 			if (secam[1] == 'C' || secam[1] == 'c')
 				fixup = V4L2_STD_SECAM_LC;
@@ -1851,9 +1852,9 @@ int TW68_s_std_internal(struct TW68_dev *dev, struct TW68_fh *fh, v4l2_std_id *i
 				break;
 	}
 
-	*id = tvnorms[i].id;
+	id = tvnorms[i].id;
 
-    printk(KERN_INFO " TW68__s_std_internal: *id = %x  i= %x \n", (int)*id, i);
+    printk(KERN_INFO " TW68__s_std_internal: *id = %x  i= %x \n", (int)id, i);
 
 	nId = fh->DMA_nCH;
 
@@ -1869,7 +1870,7 @@ int TW68_s_std_internal(struct TW68_dev *dev, struct TW68_fh *fh, v4l2_std_id *i
 }
 
 
-static int TW68_s_std(struct file *file, void *priv, v4l2_std_id *id)
+static int TW68_s_std(struct file *file, void *priv, v4l2_std_id id)
 {
 	struct TW68_fh *fh = priv;
 	// struct TW68_dev *dev = fh->dev;
@@ -1878,7 +1879,7 @@ static int TW68_s_std(struct file *file, void *priv, v4l2_std_id *id)
 	if (nId == 0XF)
 		nId = 0;
 	 	
-    printk( "%s, _s_std v4l2_std_id =%d \n", __func__, (int)*id);
+    printk( "%s, _s_std v4l2_std_id =%d \n", __func__, (int)id);
 
 	return TW68_s_std_internal(fh->dev, fh, id);
 }
@@ -1948,20 +1949,21 @@ static int TW68_g_crop(struct file *file, void *f, struct v4l2_crop *crop)
 	return 0;
 }
 
-static int TW68_s_crop(struct file *file, void *f, struct v4l2_crop *crop)
+static int TW68_s_crop(struct file *file, void *f, const struct v4l2_crop *crop_p)
 {
 	struct TW68_fh *fh = f;
 	struct TW68_dev *dev = fh->dev;
 	struct v4l2_rect *b = &dev->crop_bounds;
+	struct v4l2_crop crop = *crop_p;
 
 	printk( "========TW68__s_crop \n");
 
-	if (crop->type != V4L2_BUF_TYPE_VIDEO_CAPTURE &&
-	    crop->type != V4L2_BUF_TYPE_VIDEO_OVERLAY)
+	if (crop.type != V4L2_BUF_TYPE_VIDEO_CAPTURE &&
+	    crop.type != V4L2_BUF_TYPE_VIDEO_OVERLAY)
 		return -EINVAL;
-	if (crop->c.height < 0)
+	if (crop.c.height < 0)
 		return -EINVAL;
-	if (crop->c.width < 0)
+	if (crop.c.width < 0)
 		return -EINVAL;
 
 	if (res_locked(fh, fh->dev, RESOURCE_OVERLAY))
@@ -1969,21 +1971,21 @@ static int TW68_s_crop(struct file *file, void *f, struct v4l2_crop *crop)
 	if (res_locked(fh, fh->dev, RESOURCE_VIDEO))
 		return -EBUSY;
 
-	if (crop->c.top < b->top)
-		crop->c.top = b->top;
-	if (crop->c.top > b->top + b->height)
-		crop->c.top = b->top + b->height;
-	if (crop->c.height > b->top - crop->c.top + b->height)
-		crop->c.height = b->top - crop->c.top + b->height;
+	if (crop.c.top < b->top)
+		crop.c.top = b->top;
+	if (crop.c.top > b->top + b->height)
+		crop.c.top = b->top + b->height;
+	if (crop.c.height > b->top - crop.c.top + b->height)
+		crop.c.height = b->top - crop.c.top + b->height;
 
-	if (crop->c.left < b->left)
-		crop->c.left = b->left;
-	if (crop->c.left > b->left + b->width)
-		crop->c.left = b->left + b->width;
-	if (crop->c.width > b->left - crop->c.left + b->width)
-		crop->c.width = b->left - crop->c.left + b->width;
+	if (crop.c.left < b->left)
+		crop.c.left = b->left;
+	if (crop.c.left > b->left + b->width)
+		crop.c.left = b->left + b->width;
+	if (crop.c.width > b->left - crop.c.left + b->width)
+		crop.c.width = b->left - crop.c.left + b->width;
 
-	dev->crop_current = crop->c;
+	dev->crop_current = crop.c;
 	return 0;
 }
 
@@ -1999,7 +2001,7 @@ static int TW68_g_tuner(struct file *file, void *priv,
 }
 
 static int TW68_s_tuner(struct file *file, void *priv,
-					struct v4l2_tuner *t)
+					const struct v4l2_tuner *t)
 {
 
 	return 0;
@@ -2018,7 +2020,7 @@ static int TW68_g_frequency(struct file *file, void *priv,
 
 
 static int TW68_s_frequency(struct file *file, void *priv,
-					struct v4l2_frequency *f)
+					const struct v4l2_frequency *f)
 {
 	struct TW68_fh *fh = priv;
 	struct TW68_dev *dev = fh->dev;
@@ -2041,7 +2043,7 @@ static int TW68_g_audio(struct file *file, void *priv, struct v4l2_audio *a)
 	return 0;
 }
 
-static int TW68_s_audio(struct file *file, void *priv, struct v4l2_audio *a)
+static int TW68_s_audio(struct file *file, void *priv, const struct v4l2_audio *a)
 {
 	return 0;
 }
@@ -2117,7 +2119,7 @@ static int TW68_g_fbuf(struct file *file, void *f,
 }
 
 static int TW68_s_fbuf(struct file *file, void *f,
-					struct v4l2_framebuffer *fb)
+					const struct v4l2_framebuffer *fb)
 {
 	struct TW68_fh *fh = f;
 	struct TW68_dev *dev = fh->dev;
@@ -2398,7 +2400,6 @@ struct video_device TW68_video_template = {
 	.ioctl_ops 			= &video_ioctl_ops,
 	.minor				= -1,
 	.tvnorms			= TW68_NORMS,
-	.current_norm			= V4L2_STD_NTSC,
 };
 
 
@@ -2557,7 +2558,7 @@ int TW68_video_init2(struct TW68_dev *dev)
 void TW68_irq_video_done(struct TW68_dev *dev, unsigned int nId, u32 dwRegPB)
 {
 	enum v4l2_field field;
-	static int Done;
+//	static int Done;
 	int Fn, PB;   /// d0, w0, 
 
 		Fn = (dwRegPB >>24) & (1<< (nId-1));
@@ -2651,7 +2652,7 @@ void TW68_irq_video_done(struct TW68_dev *dev, unsigned int nId, u32 dwRegPB)
 	// B field interrupt  program update  P field mapping
 	TW68_buffer_next(dev,&(dev->video_dmaq[nId]));
 
- done:
+// done:
 	return;
 }
 
