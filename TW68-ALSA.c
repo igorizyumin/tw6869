@@ -104,12 +104,12 @@ void TW68_alsa_irq(struct TW68_dev *dev, u32 dma_status, u32 pb_status)
 	u32 audio_PB = 0;
 	static u32 last_audio_PB = 0xFFFF;
 
-	struct TW68_pgtable p_Audio = dev->m_AudioBuffer;
+//	struct TW68_pgtable p_Audio = dev->m_AudioBuffer;
 	snd_card_TW68_t *card_TW68 =
 	    (snd_card_TW68_t *) dev->card->private_data;
 
-	u8 *Audioptr = (u8 *) p_Audio.cpu;
-	u8 *AudioVB = card_TW68->audio_ringbuffer;
+//	u8 *Audioptr = (u8 *) p_Audio.cpu;
+//	u8 *AudioVB = card_TW68->audio_ringbuffer;
 
 //      printk(  "%s()  card_TW68 pcm %p  dma_status %x  pb_status %x \n", __func__,  
 //                  card_TW68->TW68_pcm, dma_status, pb_status);

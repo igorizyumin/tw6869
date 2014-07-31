@@ -171,7 +171,6 @@
 #define BDMA_ADDR_P_F2_0		0x84
 #define BDMA_WHP_F2_0			0x85
 #define BDMA_ADDR_B_F2_0		0x86
-#define CSR_REG                 0xFD
 #define EP_REG_ADDR             0xFE
 #define EP_REG_DATA             0xFF
 

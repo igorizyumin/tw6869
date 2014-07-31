@@ -48,11 +48,6 @@ static unsigned int latency = UNSET;
 module_param(latency, int, 0444);
 MODULE_PARM_DESC(latency, "pci latency timer");
 
-int TW68_no_overlay = -1;
-///module_param_named(no_overlay, TW6869_no_overlay, int, 0444);
-///MODULE_PARM_DESC(no_overlay,"allow override overlay default (0 disables, 1 enables)"
-///             " [some VIA/SIS chipsets are known to have problem with overlay]");
-
 static unsigned int video_nr[] = {[0 ... (TW68_MAXBOARDS - 1)] = UNSET };
 static unsigned int vbi_nr[] = {[0 ... (TW68_MAXBOARDS - 1)] = UNSET };
 static unsigned int radio_nr[] = {[0 ... (TW68_MAXBOARDS - 1)] = UNSET };
@@ -177,13 +172,11 @@ int (*TW68_dmasound_exit) (struct TW68_dev * dev);
 
 void tw68v_set_framerate(struct TW68_dev *dev, u32 ch, u32 n)
 {
-	if (n >= 0 && n < 6) {
-		if (ch >= 0 && ch < 8)
-			reg_writel(DROP_FIELD_REG0 + ch, video_framerate[n][0]);	// 30 FPS
-		printk
-		    ("****    tw68v_set_framerate: ch Id %d   n:%d  %d FPS \n ",
-		     ch, n, video_framerate[n][1]);
-	}
+	if (n >= 0 && n < 6 && ch >= 0 && ch < 8)
+		reg_writel(DROP_FIELD_REG0 + ch, video_framerate[n][0]);	// 30 FPS
+	printk
+	    ("****    tw68v_set_framerate: ch Id %d   n:%d  %d FPS \n ",
+	     ch, n, video_framerate[n][1]);
 }
 
 /* ------------------------------------------------------------------ */
@@ -300,9 +293,7 @@ int TW68_buffer_count(unsigned int size, unsigned int count)
 	maxcount = 1024 / TW68_buffer_pages(size);
 	if (count > maxcount)
 		count = maxcount;
-
-	/// printk("TW68_buffer_count  size %d   maxcount %d / C %d \n",  size,        maxcount, count );
-
+		
 	return count;
 }
 
@@ -312,8 +303,6 @@ int TW68_buffer_startpage(struct TW68_buf *buf)
 	pages = TW68_buffer_pages(buf->vb.bsize);
 	n = buf->vb.i;
 	pgn = pages * n;
-	/// printk("TW68_buffer_startpage  = %d / %p %d %d =%d\n",
-	///        pages, (buf->vb.bsize), (buf->vb.bsize), n, pgn);
 	return pgn;
 }
 
@@ -322,13 +311,8 @@ unsigned long TW68_buffer_base(struct TW68_buf *buf)
 	unsigned long base0, base;
 	struct videobuf_dmabuf *dma = videobuf_to_dma(&buf->vb);
 
-	// void* vbuf = videobuf_to_vmalloc(&buf->vb);
-
 	base0 = TW68_buffer_startpage(buf) * 4096;
 	base = base0 + dma->sglist[0].offset;
-
-	/// printk("BBBBBB dma%x  vma%x  vbuf i%x  TW68_buffer_base  base0=%x / base =%x   offset %x\n",
-	///        dma->bus_addr,  dma->vmalloc, buf->vb.baddr,  base0, base, dma->sglist[0].offset);
 
 	return base;
 }
@@ -383,18 +367,6 @@ int videoDMA_pgtable_alloc(struct pci_dev *pci, struct TW68_pgtable *pt)
 	pt->dma = dma_addr;
 	phy_addr = dma_addr + (PAGE_SIZE << 2) + (PAGE_SIZE << 1);	//6 pages
 
-	///printk("  videoDMA_pgtable_alloc: cpu:0X%p  pt->size: 0x%x   BD:0X%x  \n", cpu, pt->size, (unsigned int)pt->cpu + pt->size );
-
-	/*
-	   for ( clean = cpu; (unsigned int)clean < ((unsigned int)pt->cpu + pt->size); clean++ )
-	   {
-	   *clean++ = 0x40001000;  // ctrl dw
-	   //  *clean = phy_addr;
-	   if ((((unsigned int)pt->cpu + pt->size)-(unsigned int)clean) <6)
-	   printk("---TW68_pgtable_alloc--- mem%0d   write CPU 0X%p  SIZE%d, clean 0X%p = 0X%x 0X%x   \n",
-	   ((unsigned int)(clean-1) - (unsigned int)cpu), cpu, pt->size, clean,  *(clean-1), *clean );
-	   }
-	 */
 	return 0;
 }
 
@@ -407,57 +379,10 @@ void TW68_pgtable_free(struct pci_dev *pci, struct TW68_pgtable *pt)
 }
 
 /* ------------------------------------------------------------------ */
-/*
-void TW68_dma_free(struct videobuf_queue *q,struct TW68_buf *buf)
-{
-	struct videobuf_dmabuf *dma=videobuf_to_dma(&buf->vb);
-	BUG_ON(in_interrupt());
-
-    /// printk("  $$$$ _dma_free :: dma->vmalloc 0x%X  vb->baddr %p \n", dma->vmalloc, buf->vb.baddr);
-
-// 6.0	
-	//videobuf_waiton(&buf->vb,0,0);
-// 6.1
-	videobuf_waiton( q, &buf->vb,0,0);
-
-	//videobuf_dma_unmap(q, dma);
-
-	videobuf_dma_free(dma);
-	buf->vb.state = VIDEOBUF_NEEDS_INIT;
-}
-*/
-/* ------------------------------------------------------------------ */
 
 int TW68_buffer_queue(struct TW68_dev *dev,
 		      struct TW68_dmaqueue *q, struct TW68_buf *buf)
 {
-	///printk(" %s: video buffer_queue %p    buf %p \n", __func__, q, buf);
-
-	/*
-	   if (!list_empty(&q->queued)) {
-	   list_add_tail(&buf->vb.queue, &q->queued);
-	   buf->vb.state = VIDEOBUF_QUEUED;
-	   printk( "%s: [%p/%d] appended to queued\n",
-	   __func__, buf, buf->vb.i);
-
-	   // else if the 'active' chain doesn't yet exist we create it now 
-	   } 
-	   else 
-	   if (list_empty(&q->active)) {
-	   printk( "%s: [%p/%d] first active\n",
-	   __func__, buf, buf->vb.i);
-	   list_add_tail(&buf->vb.queue, &q->active);
-	   //  TODO - why have we removed buf->count and q->count? 
-	   buf->activate(dev, buf, NULL);
-
-	   if (NULL == q->curr) {
-	   q->curr = buf;
-	   }
-	   }
-	 */
-	/* else we would like to put this buffer on the tail of the
-	 * active chain, provided it is "compatible". */
-
 	if (NULL == q->curr) {
 		q->curr = buf;
 		buf->activate(dev, buf, NULL);
@@ -465,9 +390,7 @@ int TW68_buffer_queue(struct TW68_dev *dev,
 		list_add_tail(&buf->vb.queue, &q->queued);	// curr
 		buf->vb.state = VIDEOBUF_QUEUED;
 	}
-
-	//              TW68_buffer_requeue(dev, q);  //&dev->video_dmaq[nId]);
-
+	
 	return 0;
 
 }
@@ -854,11 +777,9 @@ void BFDMA_setup(struct TW68_dev *dev, int nDMA_channel, int H, int W)	//    Fie
 
 	regDW = reg_readl(PHASE_REF_CONFIG);
 	dn = (nDMA_channel << 1) + 0x10;
-#ifdef USE_FIELD_MODE
-	dwV = (0x3 << dn);
-#else
+
 	dwV = (0x2 << dn);
-#endif
+
 	regDW |= dwV;
 	reg_writel(PHASE_REF_CONFIG, regDW);
 	dwV = reg_readl(PHASE_REF_CONFIG);
@@ -934,17 +855,10 @@ int BF_Copy(struct TW68_dev *dev, int nDMA_channel, u32 Fn, u32 PB)
 	struct TW68_buf *buf = NULL;	//,*next = NULL;
 	int n, Hmax, Wmax, pos, pitch;	// , h
 
-	///struct dma_region                    *Field_P;
-	///struct dma_region                    *Field_B;
-	///struct scatterlist                   *sglist;
-
-	/// printk(KERN_INFO " Field_Copy:  start 0000\n");
 	int nId = nDMA_channel + 1;
 
 	void *vbuf, *srcbuf;	// = videobuf_to_vmalloc(&buf->vb);
 
-	///printk("@@@@ locate buffer_next %p [prev=%p/next=%p]   &buf->vb.queue= %p \n",
-	///     buf, q->queue.prev,q->queue.next,  &buf->vb.queue);
 
 	// fill P field half frame SG mapping entries
 	pos = 0;
@@ -958,12 +872,6 @@ int BF_Copy(struct TW68_dev *dev, int nDMA_channel, u32 Fn, u32 PB)
 
 	q = &dev->video_dmaq[nId];	///  &dev->video_q;
 
-	//  printk(KERN_INFO " nId%d   Field_Copy:  get DMA queue:%p,   curr %p\n", nId, q, q->curr);
-	/*
-	   printk(KERN_INFO " Field_Copy:  get DMA queue list head:%p, \n", q->queue);
-	   printk(KERN_INFO " Field_Copy:  get DMA queue list head address:%p, \n", &q->queue);
-	 */
-
 	if (q->curr) {
 		buf = q->curr;
 
@@ -976,21 +884,7 @@ int BF_Copy(struct TW68_dev *dev, int nDMA_channel, u32 Fn, u32 PB)
 		if (Fn)
 			pos = pitch;
 
-		///printk(KERN_INFO " Field_Copy:  start @@@@@@@@   srcbuf:%X    vbuf:%X   H %d   W %d  P %d\n", srcbuf, vbuf, Hmax, Wmax, pitch);   /// vbuf null
-
-		//vbuf += pitch * Hmax;
-		//if (n==1)
-#ifdef USE_FIELD_MODE
-		for (h = Hmax; h < Hmax + Hmax; h++) {
-			memcpy(vbuf + pos, srcbuf, pitch);
-			pos += pitch * 2;
-			srcbuf += pitch;
-		}
-#else
 		memcpy(vbuf, srcbuf, Hmax * 2 * pitch);	//Test the top half frame
-		//memcpy(vbuf, srcbuf + Hmax * pitch, Hmax * pitch);    //Test the bottom half frame
-
-#endif
 		printk(KERN_INFO " BField_Copy:  Done *******\n");
 	} else {
 		printk(" Block [][] Field_Copy:::::::::     list_empty  \n");
@@ -1009,17 +903,6 @@ int QF_Field_Copy(struct TW68_dev *dev, int nDMA_channel, u32 Fn, u32 PB)
 	int nId = 0;
 
 	void *vbuf, *srcbuf;	// = videobuf_to_vmalloc(&buf->vb);
-
-/*
-	field_PB = dev->video_dmaq[0].FieldPB & (1<<nDMA_channel);
-
-	Field_P = &dev->Field_P[nDMA_channel];
-	Field_B = &dev->Field_B[nDMA_channel];
-	if (field_PB)
-		srcbuf = Field_B->kvirt;
-	else
-		srcbuf = Field_P->kvirt;
-*/
 
 	n = 0;
 	if (Fn)
@@ -1069,10 +952,9 @@ void DecoderResize(struct TW68_dev *dev, int nId, int nHeight, int nWidth)
 	u32 nAddr, nHW, nH, nW, nVal, nReg, regDW;
 
 	if (nId >= 8) {
-		/// printk( "DecoderResize() error: nId:%d,Width=%d,Height=%d\n", nId, nWidth, nHeight);
 		return;
 	}
-	/// printk( "DecoderResize() ::::: nId:%d,Width=%d,Height=%d\n", nId, nWidth, nHeight);
+
 
 	// only for internal 4     HDelay VDelay   etc
 	nReg = 0xe7;		//  blue back color
@@ -1127,11 +1009,7 @@ void DecoderResize(struct TW68_dev *dev, int nId, int nHeight, int nWidth)
 		}
 	}
 
-	///nVal = 0;  ///0x0a;
-	///reg_writel(HDELAY0+nId, nVal);   // adjust start pixel
 	nVal = reg_readl(HDELAY0 + nId);
-
-	// reg_writel (HACTIVE_L0+nId, 0xC0);  // 2C0  704
 
 	nHW = nWidth | (nHeight << 16) | (1 << 31);
 	nH = nW = nHW;
@@ -1171,18 +1049,6 @@ void DecoderResize(struct TW68_dev *dev, int nId, int nHeight, int nWidth)
 
 	nVal = nH & 0xFF;	//V
 
-/*
-	if(nId >= 4) 
-	{
-		///DeviceWrite2864(dev, nAddr, (unsigned char)nVal);
-		///nReg = DeviceRead2864(dev, nAddr);
-	}
-	else 
-	{
-		reg_writel(nAddr,  nVal);	    
-		nReg = reg_readl(nAddr);	
-	}
-*/
 	reg_writel(nAddr, nVal);
 	nReg = reg_readl(nAddr);
 
@@ -1195,10 +1061,7 @@ void DecoderResize(struct TW68_dev *dev, int nId, int nHeight, int nWidth)
 	nAddr++;		//H
 	nVal = nW & 0xFF;
 
-	if (nId >= 4) {
-		///DeviceWrite2864(dev, nAddr, (unsigned char)nVal);
-		///nReg = DeviceRead2864(dev, nAddr);
-	} else {
+	if (nId < 4) {
 		reg_writel(nAddr, nVal);
 		nReg = reg_readl(nAddr);
 	}
@@ -1206,15 +1069,10 @@ void DecoderResize(struct TW68_dev *dev, int nId, int nHeight, int nWidth)
 	reg_writel(nAddr, nVal);
 	nReg = reg_readl(nAddr);
 
-	//// printk( "DecoderResize() ?????????????????:: nId:%d,    nAddr%X  nReg:%X\n", nId, nAddr, nReg);
-
 	nAddr++;		//H
 	nVal = nW & 0xFF;
 
-	if (nId >= 4) {
-		///DeviceWrite2864(dev, nAddr, (unsigned char)nVal);
-		///nReg = DeviceRead2864(dev, nAddr);
-	} else {
+	if (nId < 4) {
 		reg_writel(nAddr, nVal);
 		nReg = reg_readl(nAddr);
 	}
@@ -1241,11 +1099,7 @@ void resync(unsigned long data)
 
 	mod_timer(&dev->delay_resync, jiffies + msecs_to_jiffies(50));
 
-	//if (dev->videoDMA_ID == dev->videoCap_ID)
-	//      return;
-
 	if (now - dev->errlog[0] < msecs_to_jiffies(50)) {
-		///printk(" resync _reset_ sync time now%lX - errlog %lX \n", now, dev->errlog[0]);
 		return;
 	}
 
@@ -1430,13 +1284,10 @@ int VideoDecoderDetect(struct TW68_dev *dev, unsigned int DMA_nCH)
 		dwReg = reg_readl(DECODER0_SDT + (DMA_nCH * 0x10));
 	} else			// 6869  VD 5-8
 	{
-		//regDW = (ULONG)DeviceRead2864(this, VIDEO_STATUS_0 + ((nID -4)* 0x10));
-		//dwReg = (ULONG)DeviceRead2864(this, exVD0_SDT + ((nID -4)* 0x10));
 		regDW =
 		    reg_readl(DECODER0_STATUS + ((DMA_nCH - 4) * 0x10) + 0x100);
 		dwReg =
 		    reg_readl(DECODER0_SDT + ((DMA_nCH - 4) * 0x10) + 0x100);
-		///printk("\n\n Decoder 0x%X VideoStandardDetect DMA_nCH %d  regDW 0x%x  dwReg%d \n", (DECODER0_STATUS + (DMA_nCH* 0x10) + 0x100), regDW, dwReg );
 	}
 
 	if ((regDW & 1))	//&& (!(dwReg & 0x80)))   ///skip the detection glitch     //detect properly
@@ -1522,19 +1373,6 @@ static irqreturn_t TW68_irq(int irq, void *dev_id)	/// hardware dev id for the I
 
 	}
 
-	/*
-	   for (audio_ch =0; audio_ch < MAX_NUM_DATA_DMA; audio_ch++)
-	   {
-	   ///pdmaP = dev->m_AudioBuffer.cpu + (PAGE_SIZE <<1)* audio_ch + 100;
-	   ///pdmaB = dev->m_AudioBuffer.cpu + (PAGE_SIZE <<1)* audio_ch + PAGE_SIZE + 100;
-
-	   pdmaP = dev->m_AudioBuffer.cpu + (PAGE_SIZE <<1)* audio_ch /4 + 100;
-	   pdmaB = dev->m_AudioBuffer.cpu + ((PAGE_SIZE <<1)* audio_ch + PAGE_SIZE)/4 + 100;
-	   /// printk("---Audio DMA 0x19-0x29 config --- CH%02d    *dmaP 0X%x  *dmaB 0X%x  dword 0X%x 0X%x   \n",
-	   ///      audio_ch, pdmaP, pdmaB, *pdmaP, *pdmaB );
-	   }
-	 */
-
 	if ((dwRegER & 0xFF000000) && dev->video_DMA_1st_started
 	    && dev->err_times < 9) {
 		dev->video_DMA_1st_started--;
@@ -1614,20 +1452,6 @@ static irqreturn_t TW68_irq(int irq, void *dev_id)	/// hardware dev id for the I
 									    1,
 									    dwRegPB);
 
-							if (!dev->video_dmaq[k + 1].FieldPB)	// first time after dma start
-							{
-								/*
-								   Reg8b <<= 16;
-								   dev->video_dmaq[k+1].FieldPB &= 0x0000FFFF;
-								   dev->video_dmaq[k+1].FieldPB |= Reg8b;       // add
-								   /// printk(" IRQ DMA normal ist time  k:%d  Reg8b 0x%x: PB 0x%x  FieldPB 0X%X DMA_CHANNEL_ENABLE %x  DMA_CMD %X \n",
-								   ///                  k, Reg8b, dwRegPB, dev->video_dmaq[k].FieldPB,  dwRegE, dwRegF);
-
-								   if (Reg8b &0x10)
-								   dev->video_dmaq[k].FieldPB |= 0xF0;
-								 */
-							}
-
 							if (dev->
 							    video_dmaq[k +
 								       1].
@@ -1677,15 +1501,6 @@ static irqreturn_t TW68_irq(int irq, void *dev_id)	/// hardware dev id for the I
 	}
 	if (!dwRegER && !dwRegST)	// skip the  interrupt  conflicts
 	{
-		//need to stop it
-		/*
-		   reg_writel(DMA_CHANNEL_ENABLE, 0);
-		   dwRegE = reg_readl(DMA_CHANNEL_ENABLE);
-
-		   reg_writel(DMA_CMD, 0);
-		   dwRegF = reg_readl(DMA_CMD);
-		 */
-
 		if (dev->videoCap_ID == 0) {
 			reg_writel(DMA_CMD, 0);
 			reg_writel(DMA_CHANNEL_ENABLE, 0);
@@ -1711,7 +1526,7 @@ static int TW68_hwinit1(struct TW68_dev *dev)
 	    0, m_nDropChannelNum, m_bDropMasterOrSlave, m_bDropField,
 	    m_bDropOddOrEven, m_nCurVideoChannelNum;
 
-	u32 regDW, val1, addr, k, ChannelOffset, pgn;
+	u32 regDW, k, ChannelOffset, pgn;
 
 	// Audio P
 	int audio_ch;
@@ -1821,29 +1636,17 @@ static int TW68_hwinit1(struct TW68_dev *dev)
 	AudioDMA_PB_alloc(dev->pci, &dev->m_AudioBuffer);
 
 	for (k = 0; k < 8; k++) {
-#ifdef USE_FIELD_MODE
-		if (dma_field_alloc
-		    (&dev->Field_P[k], 720 * 300 * 2, dev->pci,
-		     PCI_DMA_BIDIRECTIONAL))
-#else
 		if (dma_field_alloc
 		    (&dev->Field_P[k], 720 * 600 * 2, dev->pci,
 		     PCI_DMA_BIDIRECTIONAL))
-#endif
 		{
 			/// printk(KERN_ERR,  "Failed to allocate dma buffer");
 			dma_field_free(&dev->Field_P[k]);
 			return -1;
 		}
-#ifdef USE_FIELD_MODE
-		if (dma_field_alloc
-		    (&dev->Field_B[k], 720 * 300 * 2, dev->pci,
-		     PCI_DMA_BIDIRECTIONAL))
-#else
 		if (dma_field_alloc
 		    (&dev->Field_B[k], 720 * 600 * 2, dev->pci,
 		     PCI_DMA_BIDIRECTIONAL))
-#endif
 		{
 			/// printk(KERN_ERR, "Failed to allocate dma buffer");
 			dma_field_free(&dev->Field_B[k]);
@@ -1893,23 +1696,9 @@ static int TW68_hwinit1(struct TW68_dev *dev)
 		/// Audio B = P+1
 		reg_writel(DMA_CH8_CONFIG_B + audio_ch * 2, dmaB);
 
-		/// printk("---Audio DMA 0x19-0x29 config --- CH%02d   write dmaP 0X%p  dmaB 0X%p  read 0X%x 0X%x   \n",
-		///         audio_ch, dmaP, dmaB, reg_readl(DMA_CH8_CONFIG_P + audio_ch*2), reg_readl(DMA_CH8_CONFIG_B + audio_ch*2) );
-
 	}
 
-	/*
-	   printk(" \n");
-	   u8 *Audioptr = (u8*)dev->m_AudioBuffer.cpu;
 
-	   for (k=0; k<(4096*16); k++)
-	   {
-	   *(Audioptr +k)= 0xF0;
-	   ///printk(" 0x%x ", (*(Audioptr +k)));
-	   }
-	   printk(" \n");
-	 */
-	///printk(KERN_INFO " Mmio %s: CFG[0x78]  cpu 0x%x    dma 0x%x \n", dev->name,  (unsigned int)dev->m_Page0.cpu, dev->m_Page0.dma );
 
 	regDW = reg_readl((DMA_PAGE_TABLE0_ADDR));
 	printk(KERN_INFO "DMA %s: DMA_PAGE_TABLE0_ADDR  0x%x    \n", dev->name,
@@ -1927,13 +1716,6 @@ static int TW68_hwinit1(struct TW68_dev *dev)
 	regDW = reg_readl((DMA_PAGE_TABLE1_ADDR));
 	printk(KERN_INFO "DMA %s: DMA_PAGE_TABLE1_ADDR  0x%x    \n", dev->name,
 	       regDW);
-
-	/*
-	   regDW = tw_readl( (DMA_PAGE_TABLE0_ADDR) );
-	   printk(KERN_INFO "DMA %s: tw DMA_PAGE_TABLE0_ADDR  0x%x    \n",  dev->name, regDW );
-	   regDW = tw_readl( (DMA_PAGE_TABLE1_ADDR) );
-	   printk(KERN_INFO "DMA %s: tw DMA_PAGE_TABLE1_ADDR  0x%x    \n",  dev->name, regDW );
-	 */
 
 	reg_writel(AVSRST, 0x3F);	// u32
 	regDW = reg_readl(AVSRST);
@@ -2006,33 +1788,6 @@ static int TW68_hwinit1(struct TW68_dev *dev)
 	regDW = reg_readl(MISC_CONTROL2);
 	printk(KERN_INFO " read tw68 MISC_CONTROL2 %x :: 0x%x    \n",
 	       MISC_CONTROL2, regDW);
-
-	//////////////////////////////////////
-	// 2864 #1/External, Muxed-656
-	//Reset 2864s
-
-	val1 = reg_readl(CSR_REG);
-	val1 &= 0x7FFF;
-	reg_writel(CSR_REG, val1);
-	/// printk("2864 init CSR_REG 0x%x]=  I2C 2864   val1:0X%x  %x\n", CSR_REG,  val1 );
-
-	mdelay(100);
-	val1 |= 0x8002;		// Pull out from reset and enable I2S
-	reg_writel(CSR_REG, val1);
-	/// printk("2864 init CSR_REG 0x%x]=  I2C 2864   val1:0X%x  %x\n", CSR_REG,  val1 );
-
-	addr = CLKOCTRL | 0x100;
-	///val0 = DeviceRead2864(dev, addr);
-	val1 = 0x40 | (VIDEO_IN_MODE | (VIDEO_IN_MODE << 2));	// Out enable
-	///DeviceWrite2864(dev, addr, (unsigned char)val1);
-	///val2=DeviceRead2864(dev, addr);
-	/// printk("2864[CLKOCTRL 0x%x]=  I2C 2864  val0:0X%x   val1:0X%x   val2:0X%x\n", CLKOCTRL, val0, val1, val2 );
-
-	addr = NOVID | 0x100;
-	val1 = 0x73;		// CHID with 656 Sync code, 656 output even no video input
-	///val0 = DeviceRead2864(dev,addr);
-	///DeviceWrite2864(dev,addr,val1);
-	///val2 = DeviceRead2864(dev,addr);
 
 	// device data structure initialization
 	TW68_video_init1(dev);
@@ -2178,30 +1933,8 @@ static int TW68_initdev(struct pci_dev *pci_dev,
 			latency = 0x0A;
 		}
 #endif
-		if (pci_pci_problems & (PCIPCI_FAIL | PCIAGP_FAIL)) {
-			printk(KERN_INFO "%s: quirk: this driver and your "
-			       "chipset may not work together"
-			       " in overlay mode.\n", dev->name);
-			if (!TW68_no_overlay) {
-				printk(KERN_INFO "%s: quirk: overlay "
-				       "mode will be disabled.\n", dev->name);
-				TW68_no_overlay = 1;
-			} else {
-				printk(KERN_INFO "%s: quirk: overlay "
-				       "mode will be forced. Use this"
-				       " option at your own risk.\n",
-				       dev->name);
-			}
-		}
 	}
 
-/*
-	if (UNSET != latency) {
-		printk(KERN_INFO "%s: setting pci latency timer to %d\n",
-		       dev->name,latency);
-		pci_write_config_byte(pci_dev, PCI_LATENCY_TIMER, latency);
-	}
-*/
 
 	/* print pci info */
 	pci_read_config_byte(pci_dev, PCI_CLASS_REVISION, &dev->pci_rev);
@@ -2254,9 +1987,8 @@ static int TW68_initdev(struct pci_dev *pci_dev,
 	//printk(KERN_INFO "    TW6869 PCI_BAR0 mapped registers: phy: 0x%X   dev->lmmio 0X%x  dev->bmmio 0X%x   length: %x \n",
 	//  pci_resource_start(pci_dev, 0), (unsigned int)dev->lmmio, (unsigned int)dev->bmmio, (unsigned int)pci_resource_len(pci_dev,0) );
 
-	/* initialize hardware #1 */
 	TW68_hwinit1(dev);
-	///InitExternal2864(dev);
+
 	/* get irq */
 	printk("TW68_initdev   %s: request IRQ %d\n", dev->name, pci_dev->irq);
 
@@ -2278,12 +2010,6 @@ static int TW68_initdev(struct pci_dev *pci_dev,
 	////add current TW68_dev device structure node
 
 	/* register v4l devices */
-	if (TW68_no_overlay > 0)
-		printk(KERN_INFO "%s: Overlay support disabled.\n", dev->name);
-	else
-		printk(KERN_INFO "%s: Overlay supported %d .\n", dev->name,
-		       TW68_no_overlay);
-
 	err0 = vdev_init(dev, &TW68_video_template, "video");
 
 	if (err0 < 0) {
