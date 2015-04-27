@@ -257,7 +257,7 @@ static const struct v4l2_queryctrl no_ctrl = {
 };
 
 static const struct v4l2_queryctrl video_ctrls[] = {
-	/* --- video --- */
+	/* these must be ordered by id for ctrl_by_id to work correctly */
 	{
 		.id = V4L2_CID_BRIGHTNESS,
 		.name = "Brightness",
@@ -291,20 +291,6 @@ static const struct v4l2_queryctrl video_ctrls[] = {
 		.default_value = 0,
 		.type = V4L2_CTRL_TYPE_INTEGER,
 	}, {
-		.id = V4L2_CID_HFLIP,
-		.name = "Mirror",
-		.minimum = 0,
-		.maximum = 1,
-		.type = V4L2_CTRL_TYPE_BOOLEAN,
-	},
-	/* --- audio --- */
-	{
-		.id = V4L2_CID_AUDIO_MUTE,
-		.name = "Mute",
-		.minimum = 0,
-		.maximum = 1,
-		.type = V4L2_CTRL_TYPE_BOOLEAN,
-	}, {
 		.id = V4L2_CID_AUDIO_VOLUME,
 		.name = "Volume",
 		.minimum = -15,
@@ -312,6 +298,13 @@ static const struct v4l2_queryctrl video_ctrls[] = {
 		.step = 1,
 		.default_value = 0,
 		.type = V4L2_CTRL_TYPE_INTEGER,
+	}, {
+		.id = V4L2_CID_AUDIO_MUTE,
+		.name = "Mute",
+		.minimum = 0,
+		.maximum = 1,
+		.step = 1,
+		.type = V4L2_CTRL_TYPE_BOOLEAN,
 	},
 	/* --- private --- */
 	{
@@ -319,6 +312,7 @@ static const struct v4l2_queryctrl video_ctrls[] = {
 		.name = "Invert",
 		.minimum = 0,
 		.maximum = 1,
+		.step = 1,
 		.type = V4L2_CTRL_TYPE_BOOLEAN,
 	}, {
 		.id = V4L2_CID_PRIVATE_Y_ODD,
@@ -341,6 +335,7 @@ static const struct v4l2_queryctrl video_ctrls[] = {
 		.name = "automute",
 		.minimum = 0,
 		.maximum = 1,
+		.step = 1,
 		.default_value = 1,
 		.type = V4L2_CTRL_TYPE_BOOLEAN,
 	}
@@ -348,13 +343,28 @@ static const struct v4l2_queryctrl video_ctrls[] = {
 
 static const unsigned int CTRLS = ARRAY_SIZE(video_ctrls);
 
-static const struct v4l2_queryctrl *ctrl_by_id(unsigned int id)
+static const struct v4l2_queryctrl *ctrl_by_id(int id)
 {
-	unsigned int i;
+	int i;
+	int foundidx = -1;
 
-	for (i = 0; i < CTRLS; i++)
-		if (video_ctrls[i].id == id)
-			return video_ctrls + i;
+	int next = !!(id & V4L2_CTRL_FLAG_NEXT_CTRL);
+	id &= ~V4L2_CTRL_FLAG_NEXT_CTRL;
+
+	for (i = 0; i < CTRLS; i++) {
+		if (next && id < video_ctrls[i].id) {
+			foundidx = i;
+			break;
+		}
+		if (id == video_ctrls[i].id) {
+			foundidx = i+next;
+			break;
+		}
+	}
+	if (foundidx >= 0 && foundidx < CTRLS
+			&& (!next || video_ctrls[foundidx].id < V4L2_CID_PRIVATE_BASE))
+		return video_ctrls+foundidx;
+
 	return NULL;
 }
 
@@ -814,15 +824,14 @@ int TW68_s_ctrl_internal(struct TW68_dev *dev, struct TW68_fh *fh,
 			 struct v4l2_control *c)
 {
 	const struct v4l2_queryctrl *ctrl;
-	int restart_overlay = 0;
-	int DMA_nCH, nId, err;
+	int DMA_nCH, nId;
 	int regval = 0;;
 	DMA_nCH = fh->DMA_nCH;
 	nId = (DMA_nCH + 1) & 0xF;
 
 	ctrl = ctrl_by_id(c->id);
 	if (NULL == ctrl)
-		goto error;
+		return -EINVAL;
 
 	switch (ctrl->type) {
 	case V4L2_CTRL_TYPE_BOOLEAN:
@@ -925,11 +934,9 @@ int TW68_s_ctrl_internal(struct TW68_dev *dev, struct TW68_fh *fh,
 		break;
 	case V4L2_CID_PRIVATE_Y_EVEN:
 		dev->video_param[nId].ctl_y_even = c->value;
-		restart_overlay = 1;
 		break;
 	case V4L2_CID_PRIVATE_Y_ODD:
 		dev->video_param[nId].ctl_y_odd = c->value;
-		restart_overlay = 1;
 		break;
 
 	case V4L2_CID_PRIVATE_AUTOMUTE:
@@ -939,12 +946,10 @@ int TW68_s_ctrl_internal(struct TW68_dev *dev, struct TW68_fh *fh,
 			break;
 		}
 	default:
-		goto error;
+		return -EINVAL;
 	}
-	err = 0;
 
-error:
-	return err;
+	return 0;
 }
 
 static int TW68_s_ctrl(struct file *file, void *f, struct v4l2_control *c)
@@ -953,8 +958,6 @@ static int TW68_s_ctrl(struct file *file, void *f, struct v4l2_control *c)
 
 	return TW68_s_ctrl_internal(fh->dev, fh, c);
 }
-
-/* ------------------------------------------------------------------ */
 
 static struct videobuf_queue *TW68_queue(struct TW68_fh *fh)
 {
@@ -968,14 +971,11 @@ static struct videobuf_queue *TW68_queue(struct TW68_fh *fh)
 		q = &fh->vbi;
 		break;
 	default:
-		printk(KERN_INFO
-		       " videobuf_queue: not valid type,  break out  \n");
 		BUG();
 	}
 	return q;
 }
 
-////////////////////////////////////////////////////////////////////////////
 static int TW68_resource(struct TW68_fh *fh)
 {
 	if (fh->type == V4L2_BUF_TYPE_VIDEO_CAPTURE)
@@ -987,8 +987,6 @@ static int TW68_resource(struct TW68_fh *fh)
 	BUG();
 	return 0;
 }
-
-////////////////////////////////////////////////////////////////////////////
 
 static int video_open(struct file *file)
 {
@@ -1241,23 +1239,7 @@ static int TW68_g_fmt_vid_cap(struct file *file, void *priv,
 	f->fmt.pix.pixelformat = fh->fmt->fourcc;
 	f->fmt.pix.bytesperline = (f->fmt.pix.width * fh->fmt->depth) >> 3;
 	f->fmt.pix.sizeimage = f->fmt.pix.height * f->fmt.pix.bytesperline;
-	return 0;
-}
-
-static int TW68_g_fmt_vid_overlay(struct file *file, void *priv,
-				  struct v4l2_format *f)
-{
-	struct TW68_fh *fh = priv;
-
-	TW68_g_fmt_vid_cap(file, priv, f);
-	return 0;
-
-	f->fmt.pix.width = fh->width;
-	f->fmt.pix.height = fh->height;
-	f->fmt.pix.field = fh->cap.field;
-	f->fmt.pix.pixelformat = fh->fmt->fourcc;
-	f->fmt.pix.bytesperline = (f->fmt.pix.width * fh->fmt->depth) >> 3;
-	f->fmt.pix.sizeimage = f->fmt.pix.height * f->fmt.pix.bytesperline;
+	f->fmt.pix.colorspace = V4L2_COLORSPACE_SMPTE170M;
 	return 0;
 }
 
@@ -1351,13 +1333,6 @@ static int TW68_try_fmt_vid_cap(struct file *file, void *priv,
 	return 0;
 }
 
-static int TW68_try_fmt_vid_overlay(struct file *file, void *priv,
-				    struct v4l2_format *f)
-{
-	TW68_try_fmt_vid_cap(file, priv, f);
-	return 0;
-}
-
 static int TW68_s_fmt_vid_cap(struct file *file, void *priv,
 			      struct v4l2_format *f)
 {
@@ -1376,24 +1351,20 @@ static int TW68_s_fmt_vid_cap(struct file *file, void *priv,
 	return 0;
 }
 
-static int TW68_s_fmt_vid_overlay(struct file *file, void *priv,
-				  struct v4l2_format *f)
-{
-	TW68_try_fmt_vid_cap(file, priv, f);
-	return 0;
-}
-
 int TW68_queryctrl(struct file *file, void *priv, struct v4l2_queryctrl *c)
 {
 	const struct v4l2_queryctrl *ctrl;
 
-	if ((c->id < V4L2_CID_BASE ||
-	     c->id >= V4L2_CID_LASTP1) &&
-	    (c->id < V4L2_CID_PRIVATE_BASE || c->id >= V4L2_CID_PRIVATE_LASTP1))
-		return -EINVAL;
 	ctrl = ctrl_by_id(c->id);
-	*c = (NULL != ctrl) ? *ctrl : no_ctrl;
+	if (!ctrl)
+		return -EINVAL;
+	*c = *ctrl;
 	return 0;
+}
+
+int TW68_querymenu(struct file *file, void *priv, struct v4l2_querymenu *c)
+{
+	return -EINVAL;
 }
 
 ///EXPORT_SYMBOL_GPL(TW68_queryctrl);
@@ -1452,14 +1423,22 @@ static int TW68_querycap(struct file *file, void *priv,
 	struct TW68_fh *fh = priv;
 	struct TW68_dev *dev = fh->dev;
 
-	strcpy(cap->driver, "TW--6868");
+	strlcpy(cap->driver, "tw6869", sizeof(cap->driver));
 	strlcpy(cap->card, TW68_boards[dev->board].name, sizeof(cap->card));
-	sprintf(cap->bus_info, "PCI:%s", pci_name(dev->pci));
-	cap->version = TW68_VERSION_CODE;
+	snprintf(cap->bus_info, sizeof(cap->bus_info),
+			"PCI:%s", pci_name(dev->pci));
+
 	cap->capabilities =
 	    V4L2_CAP_VIDEO_CAPTURE |
 	    V4L2_CAP_VBI_CAPTURE |
-	    V4L2_CAP_READWRITE | V4L2_CAP_STREAMING | V4L2_CAP_TUNER;
+	    V4L2_CAP_READWRITE |
+	    V4L2_CAP_STREAMING |
+	    V4L2_CAP_DEVICE_CAPS;
+
+	cap->device_caps =
+	    V4L2_CAP_VIDEO_CAPTURE |
+	    V4L2_CAP_READWRITE |
+	    V4L2_CAP_STREAMING;
 
 	return 0;
 }
@@ -1564,7 +1543,7 @@ static int TW68_cropcap(struct file *file, void *priv, struct v4l2_cropcap *cap)
 		cap->pixelaspect.numerator = 54;
 		cap->pixelaspect.denominator = 59;
 	}
-	
+
 	return 0;
 }
 
@@ -1619,47 +1598,6 @@ static int TW68_s_crop(struct file *file, void *f,
 	return 0;
 }
 
-static int TW68_g_tuner(struct file *file, void *priv, struct v4l2_tuner *t)
-{
-	if (t->index != 0)
-		return -EINVAL;
-
-	return 0;
-}
-
-static int TW68_s_tuner(struct file *file, void *priv,
-			const struct v4l2_tuner *t)
-{
-
-	return 0;
-}
-
-static int TW68_g_frequency(struct file *file, void *priv,
-			    struct v4l2_frequency *f)
-{
-	struct TW68_fh *fh = priv;
-	struct TW68_dev *dev = fh->dev;
-
-	f->frequency = dev->ctl_freq;
-
-	return 0;
-}
-
-static int TW68_s_frequency(struct file *file, void *priv,
-			    const struct v4l2_frequency *f)
-{
-	struct TW68_fh *fh = priv;
-	struct TW68_dev *dev = fh->dev;
-
-	if (0 != f->tuner)
-		return -EINVAL;
-	mutex_lock(&dev->lock);
-	dev->ctl_freq = f->frequency;
-
-	mutex_unlock(&dev->lock);
-	return 0;
-}
-
 static int TW68_g_audio(struct file *file, void *priv, struct v4l2_audio *a)
 {
 	strcpy(a->name, "audio");
@@ -1668,20 +1606,6 @@ static int TW68_g_audio(struct file *file, void *priv, struct v4l2_audio *a)
 
 static int TW68_s_audio(struct file *file, void *priv,
 			const struct v4l2_audio *a)
-{
-	return 0;
-}
-
-static int TW68_g_priority(struct file *file, void *f, enum v4l2_priority *p)
-{
-	struct TW68_fh *fh = f;
-	struct TW68_dev *dev = fh->dev;
-
-	*p = v4l2_prio_max(&dev->prio);
-	return 0;
-}
-
-static int TW68_s_priority(struct file *file, void *f, enum v4l2_priority prio)
 {
 	return 0;
 }
@@ -1697,65 +1621,6 @@ static int TW68_enum_fmt_vid_cap(struct file *file, void *priv,
 
 	f->pixelformat = formats[f->index].fourcc;
 
-	return 0;
-}
-
-static int TW68_enum_fmt_vid_overlay(struct file *file, void *priv,
-				     struct v4l2_fmtdesc *f)
-{
-	printk(KERN_ERR "V4L2_BUF_TYPE_VIDEO_OVERLAY: no_overlay\n");
-	return -EINVAL;
-}
-
-static int TW68_g_fbuf(struct file *file, void *f, struct v4l2_framebuffer *fb)
-{
-	struct TW68_fh *fh = f;
-	struct TW68_dev *dev = fh->dev;
-
-	*fb = dev->ovbuf;
-	fb->capability = V4L2_FBUF_CAP_LIST_CLIPPING;
-
-	return 0;
-}
-
-static int TW68_s_fbuf(struct file *file, void *f,
-		       const struct v4l2_framebuffer *fb)
-{
-	struct TW68_fh *fh = f;
-	struct TW68_dev *dev = fh->dev;
-	struct TW68_format *fmt;
-
-	if (!capable(CAP_SYS_ADMIN) && !capable(CAP_SYS_RAWIO))
-		return -EPERM;
-
-	/* check args */
-	fmt = format_by_fourcc(fb->fmt.pixelformat);
-	if (NULL == fmt)
-		return -EINVAL;
-
-	/* ok, accept it */
-	dev->ovbuf = *fb;
-	dev->ovfmt = fmt;
-	if (0 == dev->ovbuf.fmt.bytesperline)
-		dev->ovbuf.fmt.bytesperline =
-		    dev->ovbuf.fmt.width * fmt->depth / 8;
-	return 0;
-}
-
-static int TW68_overlay(struct file *file, void *f, unsigned int on)
-{
-	struct TW68_fh *fh = f;
-	struct TW68_dev *dev = fh->dev;
-
-	if (on) {
-			dprintk("no_overlay\n");
-			return -EINVAL;
-	}
-	if (!on) {
-		if (!res_check(fh, RESOURCE_OVERLAY))
-			return -EINVAL;
-		res_free(fh, RESOURCE_OVERLAY);
-	}
 	return 0;
 }
 
@@ -1875,12 +1740,6 @@ static int TW68_streamoff(struct file *file, void *priv,
 	return 0;
 }
 
-static int TW68_g_parm(struct file *file, void *fh,
-		       struct v4l2_streamparm *parm)
-{
-	return 0;
-}
-
 static const struct v4l2_file_operations video_fops = {
 	.owner = THIS_MODULE,
 	.open = video_open,
@@ -1897,10 +1756,6 @@ static const struct v4l2_ioctl_ops video_ioctl_ops = {
 	.vidioc_g_fmt_vid_cap = TW68_g_fmt_vid_cap,
 	.vidioc_try_fmt_vid_cap = TW68_try_fmt_vid_cap,
 	.vidioc_s_fmt_vid_cap = TW68_s_fmt_vid_cap,
-	.vidioc_enum_fmt_vid_overlay = TW68_enum_fmt_vid_overlay,
-	.vidioc_g_fmt_vid_overlay = TW68_g_fmt_vid_overlay,
-	.vidioc_try_fmt_vid_overlay = TW68_try_fmt_vid_overlay,
-	.vidioc_s_fmt_vid_overlay = TW68_s_fmt_vid_overlay,
 	.vidioc_g_fmt_vbi_cap = TW68_try_get_set_fmt_vbi_cap,
 	.vidioc_try_fmt_vbi_cap = TW68_try_get_set_fmt_vbi_cap,
 	.vidioc_s_fmt_vbi_cap = TW68_try_get_set_fmt_vbi_cap,
@@ -1917,25 +1772,16 @@ static const struct v4l2_ioctl_ops video_ioctl_ops = {
 	.vidioc_g_input = TW68_g_input,
 	.vidioc_s_input = TW68_s_input,
 	.vidioc_queryctrl = TW68_queryctrl,
+	.vidioc_querymenu = TW68_querymenu,
 	.vidioc_g_ctrl = TW68_g_ctrl,
 	.vidioc_s_ctrl = TW68_s_ctrl,
 	.vidioc_streamon = TW68_streamon,
 	.vidioc_streamoff = TW68_streamoff,
-	.vidioc_g_tuner = TW68_g_tuner,
-	.vidioc_s_tuner = TW68_s_tuner,
 #ifdef CONFIG_VIDEO_V4L1_COMPAT
 	.vidiocgmbuf = vidiocgmbuf,
 #endif
 	.vidioc_g_crop = TW68_g_crop,
 	.vidioc_s_crop = TW68_s_crop,
-	.vidioc_g_fbuf = TW68_g_fbuf,
-	.vidioc_s_fbuf = TW68_s_fbuf,
-	.vidioc_overlay = TW68_overlay,
-	.vidioc_g_priority = TW68_g_priority,
-	.vidioc_s_priority = TW68_s_priority,
-	.vidioc_g_parm = TW68_g_parm,
-	.vidioc_g_frequency = TW68_g_frequency,
-	.vidioc_s_frequency = TW68_s_frequency,
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	.vidioc_g_register = vidioc_g_register,
 	.vidioc_s_register = vidioc_s_register,
@@ -1981,7 +1827,7 @@ int TW68_video_init1(struct TW68_dev *dev)
 	dev->ctl_hue = ctrl_by_id(V4L2_CID_HUE)->default_value;
 	dev->ctl_saturation = ctrl_by_id(V4L2_CID_SATURATION)->default_value;
 	dev->ctl_volume = ctrl_by_id(V4L2_CID_AUDIO_VOLUME)->default_value;
-	dev->ctl_mute = 1;	// ctrl_by_id(V4L2_CID_AUDIO_MUTE)->default_value;
+	dev->ctl_mute = 0;	// ctrl_by_id(V4L2_CID_AUDIO_MUTE)->default_value;
 	dev->ctl_invert = ctrl_by_id(V4L2_CID_PRIVATE_INVERT)->default_value;
 	dev->ctl_automute =
 	    ctrl_by_id(V4L2_CID_PRIVATE_AUTOMUTE)->default_value;
@@ -2017,8 +1863,6 @@ int TW68_video_init1(struct TW68_dev *dev)
 			    reg_readl(CH1_HUE_REG + k * 0x10);
 			dev->video_param[k].ctl_saturation =
 			    reg_readl(CH1_SAT_U_REG + k * 0x10) / 2;
-			dev->video_param[k].ctl_mute =
-			    reg_readl(CH1_SAT_V_REG + k * 0x10) / 2;
 		} else if (k < 8) {
 			dev->video_param[k].ctl_bright =
 			    reg_readl(CH1_BRIGHTNESS_REG + (k - 4) * 0x10 +
@@ -2030,9 +1874,6 @@ int TW68_video_init1(struct TW68_dev *dev)
 			    reg_readl(CH1_HUE_REG + (k - 4) * 0x10 + 0x100);
 			dev->video_param[k].ctl_saturation =
 			    reg_readl(CH1_SAT_U_REG + (k - 4) * 0x10 +
-				      0x100) / 2;
-			dev->video_param[k].ctl_mute =
-			    reg_readl(CH1_SAT_V_REG + (k - 4) * 0x10 +
 				      0x100) / 2;
 		}
 	}
@@ -2058,8 +1899,6 @@ int TW68_video_init1(struct TW68_dev *dev)
 		    dev->video_param[k].ctl_hue & 0xFF;
 		dev->video_param[k].ctl_saturation =
 		    dev->video_param[k].ctl_saturation & 0xFF;
-		dev->video_param[k].ctl_mute =
-		    dev->video_param[k].ctl_mute & 0xFF;
 	}
 
 	return 0;
@@ -2115,9 +1954,9 @@ void TW68_irq_video_done(struct TW68_dev *dev, unsigned int nId, u32 dwRegPB)
 
 		BF_Copy(dev, nId - 1, Fn, PB);
 		TW68_buffer_finish(dev, &dev->video_dmaq[nId], VIDEOBUF_DONE);
+		// B field interrupt  program update  P field mapping
+		TW68_buffer_next(dev, &(dev->video_dmaq[nId]));
 	}
-	// B field interrupt  program update  P field mapping
-	TW68_buffer_next(dev, &(dev->video_dmaq[nId]));
 
 // done:
 	return;
